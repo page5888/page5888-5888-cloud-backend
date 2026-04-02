@@ -131,10 +131,14 @@ async function doScrapeComments({ post_url, post_text }) {
       const commenter   = authorMatch ? authorMatch[1] : "";
       if (!commenter) return;
 
-      // 留言文字：去掉開頭 commenter 名稱那行
+      // 留言文字：去掉開頭 commenter 名稱那行，過濾時間戳
       let commentText = (el.innerText || "").trim();
       commentText = commentText.replace(new RegExp(`^${commenter}\\s*\\n?`, "i"), "").trim();
-      commentText = commentText.split("\n").slice(0, 4).join(" ").slice(0, 200);
+      // 過濾 Threads 顯示的相對時間（如「3天前」「1小時前」「剛剛」「昨天」）
+      commentText = commentText.replace(/\b\d+\s*(天|小時|分鐘|秒|週|個月|年)前\b/g, "");
+      commentText = commentText.replace(/\b(剛剛|昨天|今天)\b/g, "");
+      commentText = commentText.replace(/\b\d+[wdhms]\b/g, ""); // 英文格式 3d 2h
+      commentText = commentText.split("\n").slice(0, 4).join(" ").replace(/\s{2,}/g, " ").trim().slice(0, 200);
 
       if (!commentText || seen.has(commenter + commentText)) return;
       seen.add(commenter + commentText);

@@ -123,51 +123,29 @@
       <!-- 子頁籤 -->
       <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="border-b border-gray-100 flex">
-          <button onclick="switchPatrolTab('quick')" id="ptab_quick"
-            class="patrol-tab-btn active flex-1 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔍 快速海巡</button>
-          <button onclick="switchPatrolTab('batch')" id="ptab_batch"
-            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🤖 自動批次</button>
+          <button onclick="switchPatrolTab('search')" id="ptab_search"
+            class="patrol-tab-btn active flex-1 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔍 海巡留言</button>
           <button onclick="switchPatrolTab('promo')" id="ptab_promo"
             class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📢 推廣模式</button>
           <button onclick="switchPatrolTab('config')" id="ptab_config"
             class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">⚙️ 海巡設定</button>
         </div>
 
-        <!-- 快速海巡 -->
-        <div id="ptabQuick" class="p-5">
-          <p class="text-sm text-gray-400 mb-4">搜尋關鍵字 → 找到相關貼文 → AI 生成留言 → 透過 Extension 執行（扣 1 點/則）</p>
+        <!-- 海巡留言（快速 + 自動批次合併） -->
+        <div id="ptabSearch" class="p-5">
+          <p class="text-sm text-gray-400 mb-4">搜尋關鍵字 → 找到相關貼文 → Extension 自動逐篇留言（扣 1 點/則）</p>
           <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
             ⚠️ 需要安裝 Chrome Extension，Extension 會在你的瀏覽器中操作 Threads
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
-              <label class="text-xs text-gray-500 mb-1 block">搜尋關鍵字</label>
-              <input id="patrolKeyword" type="text" placeholder="例：電子鎖 花蓮"
+              <label class="text-xs text-gray-500 mb-1 block">搜尋關鍵字 <span class="text-gray-300">（留空 = 自動輪換關鍵字庫）</span></label>
+              <input id="patrolKeyword" type="text" placeholder="例：電子鎖 花蓮（留空則自動輪換）"
                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
               <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
               <select id="patrolAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
-            </div>
-            <div class="flex items-end">
-              <button onclick="runPatrol()" id="btnPatrol"
-                class="w-full px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
-                🚀 開始海巡
-              </button>
-            </div>
-          </div>
-          <div id="patrolResults">
-            <div class="text-sm text-gray-400 text-center py-8">輸入關鍵字後點「開始海巡」</div>
-          </div>
-        </div>
-
-        <!-- 自動批次 -->
-        <div id="ptabBatch" class="p-5 hidden">
-          <p class="text-sm text-gray-400 mb-4">點一下就自動：搜尋關鍵字 → 找到貼文 → 逐篇留言。每次自動換下一組關鍵字和留言詞句，不需要你盯著。</p>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
-              <select id="batchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
             </div>
             <div>
               <label class="text-xs text-gray-500 mb-1 block">留言模式</label>
@@ -177,11 +155,11 @@
               </select>
             </div>
           </div>
-          <div id="batchNextKw" class="text-xs text-gray-500 mb-4 bg-gray-50 rounded-lg px-3 py-2">下一組關鍵字：讀取中…</div>
+          <div id="batchNextKw" class="text-xs text-gray-500 mb-4 bg-gray-50 rounded-lg px-3 py-2">下一組自動輪換關鍵字：讀取中…</div>
           <div class="flex gap-3 items-center flex-wrap mb-4">
             <button onclick="runBatchPatrol()" id="btnBatch"
               class="px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
-              🤖 執行批次海巡
+              🚀 開始海巡留言
             </button>
             <button onclick="stopBatch()" id="btnStop"
               class="px-5 py-2.5 rounded-xl text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition hidden">
@@ -209,7 +187,9 @@
               </div>
             </div>
           </div>
-          <div id="batchResult" class="mt-4"></div>
+          <div id="batchResult" class="mt-4">
+            <div id="patrolResults"></div>
+          </div>
         </div>
 
         <!-- 推廣模式 -->
@@ -699,7 +679,7 @@ function switchTab(tab) {
   if (tab === "admin")    loadAdminUsers();
   if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
   if (tab === "referral") loadReferral();
-  if (tab === "patrol")   loadPatrolConfig();
+  if (tab === "patrol")   { loadPatrolConfig(); updateBatchNextKw(); }
   if (tab === "editor")   loadInbox();
 }
 
@@ -716,7 +696,7 @@ function fillAccountSelects() {
   const opts = userAccounts.length
     ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
     : '<option value="">（尚未設定帳號）</option>';
-  ["trendAccount","patrolAccount","batchAccount","promoAccount","editorAccount"].forEach(id => {
+  ["trendAccount","patrolAccount","promoAccount","editorAccount"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts;
   });
@@ -864,12 +844,12 @@ let _promoKeywords   = [];
 let _promoSelectedKw = "";
 
 function switchPatrolTab(tab) {
-  ["quick","batch","promo","config"].forEach(t => {
+  ["search","promo","config"].forEach(t => {
     document.getElementById("ptab_" + t)?.classList.toggle("active", t === tab);
     document.getElementById("ptab" + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle("hidden", t !== tab);
   });
   if (tab === "config") loadPatrolConfig();
-  if (tab === "batch")  updateBatchNextKw();
+  if (tab === "search") updateBatchNextKw();
 }
 
 async function loadPatrolConfig() {
@@ -1131,17 +1111,24 @@ async function sendPatrolComment(idx, postUrl) {
 // ── 自動批次海巡 ─────────────────────────────────────────────────────────────
 
 async function runBatchPatrol() {
-  const accountId = document.getElementById("batchAccount").value;
-  const mode      = document.getElementById("batchMode").value;
-  const kws = _patrolConfig.keywords || [];
+  const accountId  = document.getElementById("patrolAccount").value;
+  const mode       = document.getElementById("batchMode").value;
+  const manualKw   = document.getElementById("patrolKeyword").value.trim();
+  const kws        = _patrolConfig.keywords || [];
   if (!accountId) { alert("請選擇帳號"); return; }
-  if (!kws.length) { alert("請先到「海巡設定」新增關鍵字"); return; }
 
-  const idx     = _patrolConfig.kw_index ?? 0;
-  const keyword = kws[idx % kws.length];
-  const btn     = document.getElementById("btnBatch");
-  const box     = document.getElementById("batchResult");
-  btn.disabled  = true; btn.textContent = "搜尋中…";
+  // 優先用手動輸入，否則輪換關鍵字庫
+  let keyword, idx = _patrolConfig.kw_index ?? 0;
+  if (manualKw) {
+    keyword = manualKw;
+  } else {
+    if (!kws.length) { alert("請先到「海巡設定」新增關鍵字，或在上方輸入框填寫關鍵字"); return; }
+    keyword = kws[idx % kws.length];
+  }
+
+  const btn = document.getElementById("btnBatch");
+  const box = document.getElementById("batchResult");
+  btn.disabled = true; btn.textContent = "搜尋中…";
   box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 正在搜尋「${esc(keyword)}」，等待 Extension…</div>`;
 
   // 1. 發搜尋任務
@@ -1150,7 +1137,7 @@ async function runBatchPatrol() {
     body: JSON.stringify({ account_id: accountId, keyword }),
   });
   const d = await r.json();
-  if (!d.success) { box.innerHTML = `<div class="text-red-400 text-sm py-4">${esc(d.error)}</div>`; btn.disabled=false; btn.textContent="🤖 執行批次海巡"; return; }
+  if (!d.success) { box.innerHTML = `<div class="text-red-400 text-sm py-4">${esc(d.error)}</div>`; btn.disabled=false; btn.textContent="🚀 開始海巡留言"; return; }
 
   // 2. 輪詢結果
   const taskId = d.task_id;
@@ -1160,7 +1147,7 @@ async function runBatchPatrol() {
     if (waited > 90) {
       clearInterval(timer);
       box.innerHTML = '<div class="text-red-400 text-sm py-4">超時，請確認 Extension 有在運作</div>';
-      btn.disabled=false; btn.textContent="🤖 執行批次海巡";
+      btn.disabled=false; btn.textContent="🚀 開始海巡留言";
       return;
     }
     box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋中…（${waited}s）</div>`;
@@ -1170,7 +1157,7 @@ async function runBatchPatrol() {
       if (info.status === "done" || info.status === "failed") {
         clearInterval(timer);
         const posts = info.posts || [];
-        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🤖 執行批次海巡"; return; }
+        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🚀 開始海巡留言"; return; }
         // 3. 批次留言
         box.innerHTML = `<div class="text-sm text-indigo-500 py-2">找到 ${posts.length} 篇，正在建立留言任務…</div>`;
         const batchRes = await fetch("/api/patrol/batch-comment", {
@@ -1179,17 +1166,18 @@ async function runBatchPatrol() {
         });
         const batchData = await batchRes.json();
         if (batchData.success) {
-          // 更新 kw_index
-          _patrolConfig.kw_index = ((idx + 1) % kws.length);
-          await savePatrolConfigSilent();
-          updateBatchNextKw();
+          // 只有使用輪換庫時才更新 kw_index
+          if (!manualKw && kws.length) {
+            _patrolConfig.kw_index = ((idx + 1) % kws.length);
+            await savePatrolConfigSilent();
+            updateBatchNextKw();
+          }
           box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個留言任務，Extension 會陸續執行</div>`;
-          // 顯示進度條並開始輪詢
           startQueueMonitor();
         } else {
-          box.innerHTML = `<div class="text-red-400 text-sm py-2">批次建立失敗：${esc(batchData.error)}</div>`;
+          box.innerHTML = `<div class="text-red-400 text-sm py-2">建立失敗：${esc(batchData.error)}</div>`;
         }
-        btn.disabled=false; btn.textContent="🤖 執行批次海巡";
+        btn.disabled=false; btn.textContent="🚀 開始海巡留言";
       }
     } catch(e) {}
   }, 3000);
