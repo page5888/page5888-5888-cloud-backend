@@ -63,9 +63,9 @@ async function executeTask(task) {
 
   // ── 共用：取得或建立 Threads 分頁 ──────────────────────────────────────────
   async function getThreadsTab(initUrl) {
-    const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*"] });
+    const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*", "*://www.threads.com/*", "*://threads.com/*"] });
     if (tabs.length > 0) return tabs[0].id;
-    const tab = await chrome.tabs.create({ url: initUrl || "https://www.threads.net", active: false });
+    const tab = await chrome.tabs.create({ url: initUrl || "https://www.threads.com", active: false });
     return tab.id;
   }
 
@@ -81,7 +81,7 @@ async function executeTask(task) {
   // ── 搜尋任務 ─────────────────────────────────────────────────────────────────
   if (task.type === "search") {
     const keyword   = payload.keyword || "";
-    const searchUrl = `https://www.threads.net/search?q=${encodeURIComponent(keyword)}&serp_type=default`;
+    const searchUrl = `https://www.threads.com/search?q=${encodeURIComponent(keyword)}&serp_type=default`;
     let searchTabId;
 
     try {
@@ -125,7 +125,7 @@ async function executeTask(task) {
               const href = el.getAttribute("href") || "";
               if (!href || seen.has(href) || !/\/(post|t)\//.test(href)) return;
               seen.add(href);
-              const full = href.startsWith("http") ? href : "https://www.threads.net" + href;
+              const full = href.startsWith("http") ? href : "https://www.threads.com" + href;
               posts.push({ text: (el.innerText || "").trim().slice(0, 300) || full, link: full });
             });
           }
@@ -161,8 +161,8 @@ async function executeTask(task) {
       return;
     }
 
-    const tabId = await getThreadsTab(`https://www.threads.net/@${handle}`);
-    await navAndWait(tabId, `https://www.threads.net/@${handle}`, 3500);
+    const tabId = await getThreadsTab(`https://www.threads.com/@${handle}`);
+    await navAndWait(tabId, `https://www.threads.com/@${handle}`, 3500);
 
     // 抓貼文列表
     let postList = [];
@@ -238,12 +238,12 @@ async function executeTask(task) {
   }
 
   // 留言 / 發文任務
-  const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*"] });
+  const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*", "*://www.threads.com/*", "*://threads.com/*"] });
   let tabId;
   if (tabs.length > 0) {
     tabId = tabs[0].id;
   } else {
-    const tab = await chrome.tabs.create({ url: "https://www.threads.net", active: true });
+    const tab = await chrome.tabs.create({ url: "https://www.threads.com", active: true });
     tabId = tab.id;
     await new Promise(r => setTimeout(r, 3000));
   }

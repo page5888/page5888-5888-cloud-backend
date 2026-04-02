@@ -75,7 +75,7 @@ async function doScrape({ keyword }) {
         if (!/\/(post|t)\//.test(link)) return;
         seen.add(link);
         const text = el.innerText?.trim().slice(0, 300) || link;
-        posts.push({ text, link: link.startsWith("http") ? link : "https://www.threads.net" + link });
+        posts.push({ text, link: link.startsWith("http") ? link : "https://www.threads.com" + link });
       });
     }
 
@@ -263,7 +263,7 @@ async function doPost({ text }) {
     });
     if (!credit.ok) return { success: false, detail: credit.reason };
 
-    window.location.href = "https://www.threads.net";
+    window.location.href = "https://www.threads.com";
     await delay(3000);
 
     const composeBtn = document.querySelector('[aria-label*="New thread"], [aria-label*="新貼文"]');
