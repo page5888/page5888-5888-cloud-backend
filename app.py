@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 from flask import Flask, request, jsonify, session, render_template, redirect
+from flask_cors import CORS
 
 from modules.db import (
     init_db, get_or_create_user, get_user, get_all_users,
@@ -25,25 +26,13 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")   # 你的 Google 帳號 email
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "5888cloud-secret-change-me")
 
-init_db()
-
-
 # ── CORS（允許 Chrome Extension 跨域帶 Cookie） ────────────────────────────────
+def _is_allowed_origin(origin):
+    return origin and origin.startswith("chrome-extension://")
 
-@app.after_request
-def add_cors_headers(response):
-    origin = request.headers.get("Origin", "")
-    if origin.startswith("chrome-extension://"):
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    return response
+CORS(app, origins=_is_allowed_origin, supports_credentials=True)
 
-
-@app.route("/ext/<path:subpath>", methods=["OPTIONS"])
-def cors_preflight(subpath):
-    return "", 204
+init_db()
 
 
 # ── Google OAuth ──────────────────────────────────────────────────────────────
