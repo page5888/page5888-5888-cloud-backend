@@ -13,7 +13,8 @@
   ],
   "host_permissions": [
     "https://www.threads.net/*",
-    "https://threads.net/*"
+    "https://threads.net/*",
+    "https://www.instagram.com/*"
   ],
 
   "background": {

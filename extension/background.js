@@ -85,11 +85,20 @@ async function executeTask(task) {
     let searchTabId;
 
     try {
-      // 開新頁面 + 固定等 9 秒讓 SPA 渲染（不用 onUpdated listener）
-      const tab = await chrome.tabs.create({ url: searchUrl, active: false });
+      // 開新頁面（active:true 確保 Chrome 載入），等 9 秒讓 SPA 渲染
+      const tab = await chrome.tabs.create({ url: searchUrl, active: true });
       searchTabId = tab.id;
       console.log("[5888] search tab:", searchTabId, searchUrl);
       await sleep(9000);
+
+      // 確認 tab 還在且 URL 在 threads/instagram（排除其他重導向）
+      let tabInfo;
+      try { tabInfo = await chrome.tabs.get(searchTabId); } catch(_) {}
+      const currentUrl = tabInfo?.url || "";
+      console.log("[5888] tab URL after 9s:", currentUrl, "status:", tabInfo?.status);
+      if (currentUrl && !currentUrl.includes("threads.net") && !currentUrl.includes("instagram.com")) {
+        throw new Error("頁面跳轉到未知網址: " + currentUrl.slice(0, 60));
+      }
 
       // 同步抓取（不用 async func，避免 Chrome 對 Promise return 的相容問題）
       const results = await chrome.scripting.executeScript({
@@ -134,8 +143,9 @@ async function executeTask(task) {
       await reportDone(task.id, task.type, true, res.detail, res.posts);
     } catch(e) {
       console.error("[5888] search error:", e.name, e.message);
-      notify("❌ 搜尋失敗", e.message.slice(0, 100));
-      await reportDone(task.id, task.type, false, e.message, []);
+      const errMsg = (e.name === "Error" ? "" : e.name + ": ") + e.message;
+      notify("❌ " + errMsg.slice(0, 60), "搜尋失敗，詳見後端任務記錄");
+      await reportDone(task.id, task.type, false, errMsg, []);
     } finally {
       if (searchTabId) chrome.tabs.remove(searchTabId).catch(() => {});
     }
