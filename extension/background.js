@@ -237,32 +237,149 @@ async function executeTask(task) {
     return;
   }
 
-  // 留言 / 發文任務
-  const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*", "*://www.threads.com/*", "*://threads.com/*"] });
-  let tabId;
-  if (tabs.length > 0) {
-    tabId = tabs[0].id;
-  } else {
-    const tab = await chrome.tabs.create({ url: "https://www.threads.com", active: true });
-    tabId = tab.id;
-    await new Promise(r => setTimeout(r, 3000));
+  // ── 留言任務 ─────────────────────────────────────────────────────────────────
+  if (task.type === "comment") {
+    const { post_url, comment_text } = payload;
+    let commentTabId;
+    try {
+      const tab = await chrome.tabs.create({ url: post_url, active: true });
+      commentTabId = tab.id;
+      await sleep(7000); // 等頁面載入 + React 渲染
+
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: commentTabId },
+        func: (txt) => {
+          const replyBtn = document.querySelector('[aria-label*="Reply"], [aria-label*="留言"]');
+          if (replyBtn) { replyBtn.click(); }
+          const wait = (ms) => new Promise(r => setTimeout(r, ms));
+          return wait(800).then(() => {
+            const input = document.querySelector('[contenteditable="true"][role="textbox"]')
+                        || document.querySelector('textarea[placeholder*="Reply"]');
+            if (!input) return { success: false, detail: "找不到留言輸入框" };
+            input.focus();
+            document.execCommand("insertText", false, txt);
+            return wait(500).then(() => {
+              const btn = [...document.querySelectorAll("button")].find(b =>
+                b.innerText?.match(/Post|發布|Reply/i));
+              if (!btn) return { success: false, detail: "找不到送出按鈕" };
+              btn.click();
+              return wait(1000).then(() => ({ success: true, detail: "留言成功: " + txt.slice(0, 30) }));
+            });
+          });
+        },
+        args: [comment_text],
+      });
+      const r = results?.[0]?.result || { success: false, detail: "無回傳" };
+      notify(r.success ? "✅ 留言完成" : "❌ 留言失敗", r.detail);
+      await reportDone(task.id, task.type, r.success, r.detail);
+    } catch(e) {
+      notify("❌ 留言失敗", e.message.slice(0, 80));
+      await reportDone(task.id, task.type, false, e.message);
+    } finally {
+      if (commentTabId) chrome.tabs.remove(commentTabId).catch(() => {});
+    }
+    return;
   }
 
-  // 確保 content.js 有注入
-  try {
-    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-    await new Promise(r => setTimeout(r, 300));
-  } catch(e) { /* 已注入則忽略 */ }
+  // ── 回覆留言任務 ──────────────────────────────────────────────────────────────
+  if (task.type === "reply_comment") {
+    const { post_url, comment_author, comment_text_hint, reply_text } = payload;
+    let replyTabId;
+    try {
+      const tab = await chrome.tabs.create({ url: post_url, active: true });
+      replyTabId = tab.id;
+      await sleep(7000);
 
-  try {
-    const result = await chrome.tabs.sendMessage(tabId, { action: task.type, payload });
-    const ok = result?.success ?? false;
-    notify(ok ? "✅ 任務完成" : "❌ 任務失敗", result?.detail || "");
-    await reportDone(task.id, task.type, ok, result?.detail ?? "");
-  } catch (e) {
-    notify("❌ 任務失敗", e.message);
-    await reportDone(task.id, task.type, false, e.message);
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: replyTabId },
+        func: (author, hint, txt) => {
+          const wait = (ms) => new Promise(r => setTimeout(r, ms));
+          const authorLower = (author || "").toLowerCase().replace(/^@/, "");
+          const hintLower   = (hint || "").slice(0, 30).toLowerCase();
+          let targetEl = null;
+          for (const el of document.querySelectorAll("article, [role='article'], div[tabindex]")) {
+            const text = el.innerText?.toLowerCase() || "";
+            if (authorLower && text.includes(authorLower)) {
+              if (!hintLower || text.includes(hintLower)) { targetEl = el; break; }
+              if (!targetEl) targetEl = el;
+            }
+          }
+          const replyBtn = targetEl
+            ? [...targetEl.querySelectorAll("button, span[role='button']")].find(b => b.innerText?.match(/Reply|回覆/i))
+            : document.querySelector('[aria-label*="Reply"], [aria-label*="留言"]');
+          if (replyBtn) replyBtn.click();
+          return wait(800).then(() => {
+            const input = document.querySelector('[contenteditable="true"][role="textbox"]')
+                        || document.querySelector('textarea[placeholder*="Reply"]');
+            if (!input) return { success: false, detail: "找不到回覆輸入框" };
+            input.focus();
+            document.execCommand("insertText", false, txt);
+            return wait(500).then(() => {
+              const btn = [...document.querySelectorAll("button")].find(b => b.innerText?.match(/Post|發布|Reply|回覆/i));
+              if (!btn) return { success: false, detail: "找不到送出按鈕" };
+              btn.click();
+              return wait(1000).then(() => ({ success: true, detail: "回覆成功: " + txt.slice(0, 30) }));
+            });
+          });
+        },
+        args: [comment_author, comment_text_hint, reply_text],
+      });
+      const r = results?.[0]?.result || { success: false, detail: "無回傳" };
+      notify(r.success ? "✅ 回覆完成" : "❌ 回覆失敗", r.detail);
+      await reportDone(task.id, task.type, r.success, r.detail);
+    } catch(e) {
+      notify("❌ 回覆失敗", e.message.slice(0, 80));
+      await reportDone(task.id, task.type, false, e.message);
+    } finally {
+      if (replyTabId) chrome.tabs.remove(replyTabId).catch(() => {});
+    }
+    return;
   }
+
+  // ── 發文任務 ─────────────────────────────────────────────────────────────────
+  if (task.type === "post") {
+    let postTabId;
+    try {
+      const tab = await chrome.tabs.create({ url: "https://www.threads.com", active: true });
+      postTabId = tab.id;
+      await sleep(6000);
+
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: postTabId },
+        func: (txt) => {
+          const wait = (ms) => new Promise(r => setTimeout(r, ms));
+          const composeBtn = document.querySelector('[aria-label*="New thread"], [aria-label*="新貼文"]');
+          if (!composeBtn) return { success: false, detail: "找不到發文按鈕" };
+          composeBtn.click();
+          return wait(800).then(() => {
+            const input = document.querySelector('[contenteditable="true"][role="textbox"]');
+            if (!input) return { success: false, detail: "找不到發文輸入框" };
+            input.focus();
+            document.execCommand("insertText", false, txt);
+            return wait(500).then(() => {
+              const btn = [...document.querySelectorAll("button")].find(b => b.innerText?.match(/Post|發布/i));
+              if (!btn) return { success: false, detail: "找不到發布按鈕" };
+              btn.click();
+              return wait(1000).then(() => ({ success: true, detail: "發文成功" }));
+            });
+          });
+        },
+        args: [payload.text],
+      });
+      const r = results?.[0]?.result || { success: false, detail: "無回傳" };
+      notify(r.success ? "✅ 發文完成" : "❌ 發文失敗", r.detail);
+      await reportDone(task.id, task.type, r.success, r.detail);
+    } catch(e) {
+      notify("❌ 發文失敗", e.message.slice(0, 80));
+      await reportDone(task.id, task.type, false, e.message);
+    } finally {
+      if (postTabId) chrome.tabs.remove(postTabId).catch(() => {});
+    }
+    return;
+  }
+
+  // 未知任務類型
+  await reportDone(task.id, task.type, false, "未知任務類型: " + task.type);
 }
 
 // ── 回報結果給雲端 ──────────────────────────────────────────────────────────
