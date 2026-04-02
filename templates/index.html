@@ -163,7 +163,7 @@
 
         <!-- 自動批次 -->
         <div id="ptabBatch" class="p-5 hidden">
-          <p class="text-sm text-gray-400 mb-4">從循環關鍵字列表取一組搜尋 → 對所有貼文自動套用詞句庫留言（不需 AI，快速批次）</p>
+          <p class="text-sm text-gray-400 mb-4">點一下就自動：搜尋關鍵字 → 找到貼文 → 逐篇留言。每次自動換下一組關鍵字和留言詞句，不需要你盯著。</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
@@ -187,7 +187,7 @@
 
         <!-- 推廣模式 -->
         <div id="ptabPromo" class="p-5 hidden">
-          <p class="text-sm text-gray-400 mb-4">輸入產品描述 → AI 自動生成關鍵字 → 搜尋貼文 → 對每篇貼文 AI 生成帶有產品連結的推廣留言</p>
+          <p class="text-sm text-gray-400 mb-4">告訴 AI 你賣什麼 → AI 幫你想搜尋關鍵字 → 找到有需求的貼文 → 自動留下帶產品連結的推廣留言</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
@@ -230,7 +230,7 @@
             <!-- 循環關鍵字 -->
             <div>
               <h3 class="font-medium text-gray-700 mb-2">🔄 循環關鍵字列表</h3>
-              <p class="text-xs text-gray-400 mb-3">每次執行自動批次，會依序取下一組關鍵字搜尋。執行過後自動往下一組輪替。</p>
+              <p class="text-xs text-gray-400 mb-3">預先存好多組搜尋關鍵字（例：電子鎖、花蓮鎖匠、換鎖），每次執行批次海巡會自動換下一組，避免一直重複同樣的搜尋。</p>
               <div class="flex gap-2 mb-3">
                 <input id="newKwInput" type="text" placeholder="輸入關鍵字，Enter 加入"
                   onkeydown="if(event.key==='Enter')addKeyword()"
@@ -266,7 +266,7 @@
               <div class="flex items-center justify-between mb-3">
                 <div>
                   <h3 class="font-medium text-gray-700">🤖 自動海巡排程</h3>
-                  <p class="text-xs text-gray-400 mt-0.5">開啟後，Extension 每次輪詢時自動判斷是否到時間，到了就搜尋+留言，完全不需要手動操作</p>
+                  <p class="text-xs text-gray-400 mt-0.5">開啟後電腦開著不動就好，Extension 會自動在你設定的時間間隔幫你搜尋並留言，完全不需要手動操作</p>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer ml-4">
                   <input type="checkbox" id="cfgAutoEnabled" class="sr-only peer" onchange="toggleAutoPatrol(this)">
@@ -309,12 +309,12 @@
                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div>
-                  <label class="text-xs text-gray-500 mb-1 block">每 N 則暫停</label>
+                  <label class="text-xs text-gray-500 mb-1 block">留幾篇後休息</label>
                   <input id="cfgPauseAfter" type="number" min="1" max="30" value="10"
                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                 </div>
                 <div>
-                  <label class="text-xs text-gray-500 mb-1 block">暫停幾分鐘</label>
+                  <label class="text-xs text-gray-500 mb-1 block">休息幾分鐘</label>
                   <input id="cfgPauseMin" type="number" min="1" max="120" value="30"
                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
                 </div>
