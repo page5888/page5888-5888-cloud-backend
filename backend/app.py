@@ -19,6 +19,7 @@ from modules.db import (
     get_schedules, add_schedule, update_schedule, toggle_schedule, delete_schedule,
     get_due_schedules, mark_schedule_run, advance_fixed_index,
     get_patrol_config, save_patrol_config, pop_next_phrase, pop_next_keyword,
+    should_auto_patrol, mark_auto_patrol_run, get_task_payload,
     log_action, get_action_log,
 )
 
@@ -272,13 +273,46 @@ def _run_due_schedules(email: str):
             add_credits(email, 1)
 
 
+def _trigger_auto_patrol(email: str):
+    """若到時間，自動推送下一組海巡搜尋任務。"""
+    if not should_auto_patrol(email):
+        return
+    mark_auto_patrol_run(email)
+    cfg     = get_patrol_config(email)
+    kws     = cfg.get("keywords", [])
+    if not kws:
+        return
+    idx     = cfg.get("kw_index", 0) % len(kws)
+    keyword = kws[idx]
+    acc_id  = cfg.get("auto_account_id", "")
+    mode    = cfg.get("auto_mode", "phrase")
+    # 推搜尋任務，payload 帶 auto=True 讓 /ext/done 知道要自動留言
+    push_task(email, acc_id, "search", {
+        "keyword": keyword,
+        "auto": True,
+        "auto_mode": mode,
+        "kw_index": idx,
+    })
+    # 推進關鍵字索引
+    from modules.db import _lock, _conn
+    import json as _json
+    with _lock, _conn() as c:
+        new_idx = (idx + 1) % len(kws)
+        c.execute("""
+            INSERT INTO patrol_config (user_email, kw_index)
+            VALUES (?,?)
+            ON CONFLICT(user_email) DO UPDATE SET kw_index=excluded.kw_index
+        """, (email, new_idx))
+
+
 @app.route("/ext/tasks", methods=["GET"])
 def ext_get_tasks():
-    """Extension 輪詢：取得待執行任務列表，同時觸發排程。"""
+    """Extension 輪詢：取得待執行任務列表，同時觸發排程與自動海巡。"""
     email = session.get("email")
     if not email:
         return jsonify({"success": False, "error": "未登入"}), 401
     threading.Thread(target=_run_due_schedules, args=(email,), daemon=True).start()
+    threading.Thread(target=_trigger_auto_patrol, args=(email,), daemon=True).start()
     tasks = pop_pending_tasks(email)
     return jsonify({"success": True, "tasks": tasks})
 
@@ -299,6 +333,9 @@ def ext_task_done():
     if not task_id:
         return jsonify({"success": False, "error": "缺少 task_id"}), 400
 
+    # 取得任務 payload（用於自動海巡判斷）
+    task_payload = get_task_payload(task_id)
+
     complete_task(task_id, success, posts if posts else None)
 
     if success:
@@ -306,6 +343,33 @@ def ext_task_done():
         if not result["ok"]:
             return jsonify({"success": False, "error": result["reason"]})
         log_action(email, data.get("type", "action"), detail)
+
+    # 自動海巡：搜尋完成後自動建立留言任務
+    if success and data.get("type") == "search" and task_payload.get("auto") and posts:
+        def _auto_batch(email, posts, task_payload):
+            try:
+                acc_id = task_payload.get("auto_account_id") or task_payload.get("account_id", "")
+                mode   = task_payload.get("auto_mode", "phrase")
+                cfg    = get_patrol_config(email)
+                acc_id = acc_id or cfg.get("auto_account_id", "")
+                max_c  = cfg.get("max_comments", 20)
+                acc    = get_account(acc_id, email)
+                for post in posts[:max_c]:
+                    comment = ""
+                    if mode == "ai" and acc and acc.get("gemini_key"):
+                        from modules.ai_reply import generate_patrol_comment
+                        r = generate_patrol_comment(acc["gemini_key"], acc, post.get("text", ""))
+                        comment = r.get("comment", "") if r.get("success") else ""
+                    if not comment:
+                        comment = pop_next_phrase(email)
+                    if comment:
+                        push_task(email, acc_id, "comment", {
+                            "post_url": post.get("link", ""),
+                            "comment_text": comment,
+                        })
+            except Exception:
+                pass
+        threading.Thread(target=_auto_batch, args=(email, posts, task_payload), daemon=True).start()
 
     return jsonify({"success": True})
 

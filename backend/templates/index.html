@@ -260,6 +260,44 @@
               <p class="text-xs text-gray-400 mt-2">下一句輪到：第 <span id="phIndexDisplay">-</span> 句</p>
             </div>
 
+            <!-- 自動海巡排程 -->
+            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="font-medium text-gray-700">🤖 自動海巡排程</h3>
+                  <p class="text-xs text-gray-400 mt-0.5">開啟後，Extension 每次輪詢時自動判斷是否到時間，到了就搜尋+留言，完全不需要手動操作</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer ml-4">
+                  <input type="checkbox" id="cfgAutoEnabled" class="sr-only peer" onchange="toggleAutoPatrol(this)">
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+              <div id="autoPatrolSettings" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+                  <select id="cfgAutoAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"></select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">留言模式</label>
+                  <select id="cfgAutoMode" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="phrase">詞句庫輪換</option>
+                    <option value="ai">AI 生成</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">每隔幾分鐘執行一次</label>
+                  <select id="cfgAutoInterval" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="30">30 分鐘</option>
+                    <option value="60">1 小時</option>
+                    <option value="120">2 小時</option>
+                    <option value="180">3 小時</option>
+                    <option value="360">6 小時</option>
+                  </select>
+                </div>
+              </div>
+              <p class="text-xs text-gray-400 mt-3">上次執行：<span id="autoLastRun">—</span></p>
+            </div>
+
             <!-- 批次控制 -->
             <div>
               <h3 class="font-medium text-gray-700 mb-2">⚙️ 批次控制</h3>
@@ -829,8 +867,29 @@ function renderPatrolConfigUI() {
   if (phraseArea) phraseArea.innerHTML = phrases.map((p, i) =>
     `<div class="${i === cfg.ph_index ? 'font-semibold text-indigo-600' : ''}">${i+1}. ${esc(p)}</div>`
   ).join("");
+  // 自動海巡
+  const autoChk = document.getElementById("cfgAutoEnabled");
+  if (autoChk) autoChk.checked = !!cfg.auto_enabled;
+  const autoAcc = document.getElementById("cfgAutoAccount");
+  if (autoAcc) {
+    const opts = userAccounts.length
+      ? userAccounts.map(a => `<option value="${esc(a.id)}" ${a.id===cfg.auto_account_id?'selected':''}>${esc(a.name)}</option>`).join("")
+      : '<option value="">（無帳號）</option>';
+    autoAcc.innerHTML = opts;
+  }
+  const autoMode = document.getElementById("cfgAutoMode");
+  if (autoMode) autoMode.value = cfg.auto_mode || "phrase";
+  const autoInt = document.getElementById("cfgAutoInterval");
+  if (autoInt) autoInt.value = String(cfg.auto_interval || 30);
+  const lastRun = document.getElementById("autoLastRun");
+  if (lastRun) lastRun.textContent = cfg.auto_last_run ? cfg.auto_last_run.replace("T", " ").slice(0, 16) : "—";
   // 更新 batch next kw 顯示
   updateBatchNextKw();
+}
+
+function toggleAutoPatrol(checkbox) {
+  _patrolConfig.auto_enabled = checkbox.checked ? 1 : 0;
+  savePatrolConfigSilent();
 }
 
 function renderKwList(keywords) {
@@ -912,10 +971,14 @@ async function resetPhrases() {
 }
 
 async function savePatrolConfig() {
-  const max_comments  = parseInt(document.getElementById("cfgMaxComments").value) || 20;
-  const pause_after   = parseInt(document.getElementById("cfgPauseAfter").value) || 10;
-  const pause_minutes = parseInt(document.getElementById("cfgPauseMin").value) || 30;
-  _patrolConfig = { ..._patrolConfig, max_comments, pause_after, pause_minutes };
+  const max_comments    = parseInt(document.getElementById("cfgMaxComments").value) || 20;
+  const pause_after     = parseInt(document.getElementById("cfgPauseAfter").value) || 10;
+  const pause_minutes   = parseInt(document.getElementById("cfgPauseMin").value) || 30;
+  const auto_account_id = document.getElementById("cfgAutoAccount")?.value || "";
+  const auto_mode       = document.getElementById("cfgAutoMode")?.value || "phrase";
+  const auto_interval   = parseInt(document.getElementById("cfgAutoInterval")?.value) || 30;
+  _patrolConfig = { ..._patrolConfig, max_comments, pause_after, pause_minutes,
+                    auto_account_id, auto_mode, auto_interval };
   await savePatrolConfigSilent();
   const el = document.getElementById("patrolConfigSaved");
   el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
