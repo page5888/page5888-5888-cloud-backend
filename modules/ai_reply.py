@@ -293,6 +293,37 @@ def generate_trending_post(api_key: str, account: dict, title: str, summary: str
     return {"success": True, "text": result["text"]}
 
 
+def generate_patrol_comment(api_key: str, account: dict, post_text: str) -> dict:
+    """針對一篇 Threads 貼文，用帳號人設生成自然的留言。"""
+    if not api_key or api_key.startswith("填入"):
+        return {"success": False, "error": "請先設定 Gemini API Key"}
+
+    persona  = account.get("persona", "")
+    username = account.get("name", "")
+
+    prompt = f"""你是 {username}，你的個人風格如下：
+{persona}
+
+你在 Threads 上看到了以下這篇貼文，請用你的人設語氣寫一則自然的留言，讓對方感覺你真的有在看這篇文。
+
+【貼文內容】
+{post_text[:400]}
+
+規則：
+1. 語氣自然真實，不像廣告或機器人
+2. 留言要對貼文內容有直接回應
+3. 不加 hashtag
+4. 長度 1-3 句
+5. 直接輸出留言，不加說明前言
+
+請直接輸出留言："""
+
+    result = _call_gemini(api_key, prompt)
+    if not result["success"]:
+        return result
+    return {"success": True, "comment": result["text"]}
+
+
 def generate_schedule_post(api_key: str, account: dict, prompt: str) -> dict:
     """
     根據帳號人設和用戶給的 prompt，生成一篇 Threads 貼文。

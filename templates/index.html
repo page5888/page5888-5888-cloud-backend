@@ -8,6 +8,7 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     .tab-btn.active { border-bottom-color: #6366f1; color: #6366f1; }
+    .patrol-tab-btn.active { border-bottom-color: #6366f1; color: #6366f1; }
     .hidden { display: none !important; }
     .line-clamp-2 { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
   </style>
@@ -50,6 +51,7 @@
     <div class="max-w-5xl mx-auto px-4 flex gap-1">
       <button onclick="switchTab('trending')"  class="tab-btn active px-5 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔥 熱門發文</button>
       <button onclick="switchTab('patrol')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🔍 海巡留言</button>
+      <button onclick="switchTab('editor')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">💬 小編回覆</button>
       <button onclick="switchTab('schedule')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📅 排程發文</button>
       <button onclick="switchTab('accounts')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">👤 帳號設定</button>
       <button onclick="switchTab('log')"       class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📋 使用記錄</button>
@@ -116,32 +118,321 @@
 
     <!-- ── 🔍 海巡留言 ─────────────────────────────────────────────────────── -->
     <div id="tabPatrol" class="hidden space-y-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <h2 class="font-semibold text-gray-700 mb-1">🔍 海巡留言</h2>
-        <p class="text-sm text-gray-400 mb-4">搜尋關鍵字 → 找到相關貼文 → AI 生成留言 → 透過 Extension 自動執行（扣 1 點/則）</p>
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm text-amber-700">
-          ⚠️ 海巡功能需要安裝 Chrome Extension 才能執行，Extension 會在你的瀏覽器中操作 Threads。
+
+      <!-- 子頁籤 -->
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="border-b border-gray-100 flex">
+          <button onclick="switchPatrolTab('quick')" id="ptab_quick"
+            class="patrol-tab-btn active flex-1 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔍 快速海巡</button>
+          <button onclick="switchPatrolTab('batch')" id="ptab_batch"
+            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🤖 自動批次</button>
+          <button onclick="switchPatrolTab('promo')" id="ptab_promo"
+            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📢 推廣模式</button>
+          <button onclick="switchPatrolTab('config')" id="ptab_config"
+            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">⚙️ 海巡設定</button>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+
+        <!-- 快速海巡 -->
+        <div id="ptabQuick" class="p-5">
+          <p class="text-sm text-gray-400 mb-4">搜尋關鍵字 → 找到相關貼文 → AI 生成留言 → 透過 Extension 執行（扣 1 點/則）</p>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
+            ⚠️ 需要安裝 Chrome Extension，Extension 會在你的瀏覽器中操作 Threads
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">搜尋關鍵字</label>
+              <input id="patrolKeyword" type="text" placeholder="例：電子鎖 花蓮"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+              <select id="patrolAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+            <div class="flex items-end">
+              <button onclick="runPatrol()" id="btnPatrol"
+                class="w-full px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+                🚀 開始海巡
+              </button>
+            </div>
+          </div>
+          <div id="patrolResults">
+            <div class="text-sm text-gray-400 text-center py-8">輸入關鍵字後點「開始海巡」</div>
+          </div>
+        </div>
+
+        <!-- 自動批次 -->
+        <div id="ptabBatch" class="p-5 hidden">
+          <p class="text-sm text-gray-400 mb-4">從循環關鍵字列表取一組搜尋 → 對所有貼文自動套用詞句庫留言（不需 AI，快速批次）</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+              <select id="batchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">留言模式</label>
+              <select id="batchMode" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <option value="phrase">詞句庫輪換（快速）</option>
+                <option value="ai">AI 生成（較慢，需 Gemini Key）</option>
+              </select>
+            </div>
+          </div>
+          <div id="batchNextKw" class="text-xs text-gray-500 mb-4 bg-gray-50 rounded-lg px-3 py-2">下一組關鍵字：讀取中…</div>
+          <button onclick="runBatchPatrol()" id="btnBatch"
+            class="px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+            🤖 執行批次海巡
+          </button>
+          <div id="batchResult" class="mt-4"></div>
+        </div>
+
+        <!-- 推廣模式 -->
+        <div id="ptabPromo" class="p-5 hidden">
+          <p class="text-sm text-gray-400 mb-4">輸入產品描述 → AI 自動生成關鍵字 → 搜尋貼文 → 對每篇貼文 AI 生成帶有產品連結的推廣留言</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+              <select id="promoAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">目標客群（選填）</label>
+              <input id="promoAudience" type="text" placeholder="例：租屋族、新婚夫妻"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-xs text-gray-500 mb-1 block">產品描述</label>
+              <textarea id="promoDesc" rows="3" placeholder="例：花蓮電子鎖安裝，提供感應卡、指紋、密碼三合一鎖，含到府安裝服務"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-xs text-gray-500 mb-1 block">產品連結（選填，會帶入留言）</label>
+              <input id="promoUrl" type="text" placeholder="https://shopee.tw/..."
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+          </div>
+          <div class="flex gap-3 items-center flex-wrap">
+            <button onclick="genPromoKeywords()" id="btnGenKw"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500 hover:bg-indigo-600 text-white transition">
+              ✨ AI 生成關鍵字
+            </button>
+            <div id="promoKwList" class="flex flex-wrap gap-2"></div>
+          </div>
+          <div id="promoKwSelected" class="mt-2 text-xs text-gray-500"></div>
+          <button onclick="runPromoPatrol()" id="btnPromo" class="mt-4 px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition hidden">
+            🚀 開始推廣海巡
+          </button>
+          <div id="promoResult" class="mt-4"></div>
+        </div>
+
+        <!-- 海巡設定 -->
+        <div id="ptabConfig" class="p-5 hidden">
+          <div class="space-y-6">
+
+            <!-- 循環關鍵字 -->
+            <div>
+              <h3 class="font-medium text-gray-700 mb-2">🔄 循環關鍵字列表</h3>
+              <p class="text-xs text-gray-400 mb-3">每次執行自動批次，會依序取下一組關鍵字搜尋。執行過後自動往下一組輪替。</p>
+              <div class="flex gap-2 mb-3">
+                <input id="newKwInput" type="text" placeholder="輸入關鍵字，Enter 加入"
+                  onkeydown="if(event.key==='Enter')addKeyword()"
+                  class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <button onclick="addKeyword()" class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">加入</button>
+              </div>
+              <div id="kwList" class="flex flex-wrap gap-2 min-h-[2rem]">
+                <span class="text-xs text-gray-400">（讀取中）</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">目前進度：第 <span id="kwIndexDisplay">-</span> 組</p>
+            </div>
+
+            <!-- 詞句庫 -->
+            <div>
+              <h3 class="font-medium text-gray-700 mb-2">💬 詞句庫</h3>
+              <p class="text-xs text-gray-400 mb-3">批次留言時依序輪換使用，避免重複。目前共 <span id="phraseCount">-</span> 句。</p>
+              <div id="phraseListArea" class="bg-gray-50 rounded-xl p-3 mb-3 max-h-48 overflow-y-auto text-xs text-gray-600 space-y-1">
+                <span class="text-gray-400">讀取中…</span>
+              </div>
+              <textarea id="phraseEditArea" rows="6" placeholder="每行一句，直接編輯後儲存"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono hidden resize-none"></textarea>
+              <div class="flex gap-2 mt-2">
+                <button onclick="togglePhraseEdit()" id="btnPhraseEdit"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition">✏️ 編輯詞句庫</button>
+                <button onclick="savePhrases()" id="btnPhrasesSave" class="hidden px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">💾 儲存</button>
+                <button onclick="resetPhrases()" id="btnPhrasesReset" class="hidden px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-500 transition">↩ 還原預設</button>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">下一句輪到：第 <span id="phIndexDisplay">-</span> 句</p>
+            </div>
+
+            <!-- 自動海巡排程 -->
+            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="font-medium text-gray-700">🤖 自動海巡排程</h3>
+                  <p class="text-xs text-gray-400 mt-0.5">開啟後，Extension 每次輪詢時自動判斷是否到時間，到了就搜尋+留言，完全不需要手動操作</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer ml-4">
+                  <input type="checkbox" id="cfgAutoEnabled" class="sr-only peer" onchange="toggleAutoPatrol(this)">
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+              <div id="autoPatrolSettings" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+                  <select id="cfgAutoAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"></select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">留言模式</label>
+                  <select id="cfgAutoMode" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="phrase">詞句庫輪換</option>
+                    <option value="ai">AI 生成</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">每隔幾分鐘執行一次</label>
+                  <select id="cfgAutoInterval" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="30">30 分鐘</option>
+                    <option value="60">1 小時</option>
+                    <option value="120">2 小時</option>
+                    <option value="180">3 小時</option>
+                    <option value="360">6 小時</option>
+                  </select>
+                </div>
+              </div>
+              <p class="text-xs text-gray-400 mt-3">上次執行：<span id="autoLastRun">—</span></p>
+            </div>
+
+            <!-- 批次控制 -->
+            <div>
+              <h3 class="font-medium text-gray-700 mb-2">⚙️ 批次控制</h3>
+              <div class="grid grid-cols-3 gap-4">
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">最多留言數</label>
+                  <input id="cfgMaxComments" type="number" min="1" max="50" value="20"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">每 N 則暫停</label>
+                  <input id="cfgPauseAfter" type="number" min="1" max="30" value="10"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">暫停幾分鐘</label>
+                  <input id="cfgPauseMin" type="number" min="1" max="120" value="30"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+              </div>
+              <button onclick="savePatrolConfig()" class="mt-3 px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+                💾 儲存設定
+              </button>
+              <span id="patrolConfigSaved" class="text-xs text-green-500 ml-3 hidden">已儲存</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 💬 小編回覆 ─────────────────────────────────────────────────────── -->
+    <div id="tabEditor" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h2 class="font-semibold text-gray-700 mb-1">💬 AI 小編回覆</h2>
+        <p class="text-sm text-gray-400 mb-5">把別人留在你貼文下的留言貼進來，AI 幫你用品牌口吻生成回覆</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">搜尋關鍵字</label>
-            <input id="patrolKeyword" type="text" placeholder="例：電子鎖 花蓮"
+            <label class="text-xs text-gray-500 mb-1 block">使用帳號（人設來源）</label>
+            <select id="editorAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">留言者 @帳號名</label>
+            <input id="editorCommenter" type="text" placeholder="例：user123"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
           </div>
-          <div>
-            <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
-            <select id="patrolAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">你的貼文連結（Extension 送出用）</label>
+            <input id="editorPostUrl" type="text" placeholder="https://www.threads.net/@帳號/post/..."
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
           </div>
-          <div class="flex items-end">
-            <button onclick="runPatrol()" id="btnPatrol"
-              class="w-full px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
-              🚀 開始海巡
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">你的貼文內容（摘要即可）</label>
+            <textarea id="editorPostText" rows="2" placeholder="例：今天分享花蓮電子鎖安裝心得…"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">對方的留言內容</label>
+            <textarea id="editorCommentText" rows="3" placeholder="把對方的留言文字貼進來"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- 選填：商品資訊 -->
+        <details class="mb-4">
+          <summary class="text-xs text-gray-400 cursor-pointer select-none hover:text-gray-600">＋ 選填：商品資訊（若留言與商品有關可帶入）</summary>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">商品名稱</label>
+              <input id="editorProductTitle" type="text" placeholder="例：感應卡電子鎖"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">商品連結</label>
+              <input id="editorProductUrl" type="text" placeholder="https://shopee.tw/..."
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+          </div>
+        </details>
+
+        <button onclick="genEditorReply()" id="btnEditorReply"
+          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          ✨ AI 生成回覆
+        </button>
+
+        <!-- 結果 -->
+        <div id="editorReplyResult" class="mt-5 hidden">
+          <label class="text-xs text-gray-500 mb-2 block">AI 生成的回覆（可直接修改）</label>
+          <textarea id="editorReplyText" rows="4"
+            class="w-full border border-indigo-200 bg-indigo-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-indigo-400"></textarea>
+          <div class="flex gap-3 mt-3 flex-wrap items-center">
+            <button onclick="sendEditorReply()" id="btnSendReply"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+              💬 送出回覆（扣 1 點）
+            </button>
+            <button onclick="copyEditorReply()" id="btnCopyReply"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+              📋 複製
+            </button>
+            <span id="editorCopied" class="text-xs text-green-500 self-center hidden">已複製！</span>
+            <span id="editorSendResult" class="text-xs self-center"></span>
+            <button onclick="clearEditorForm()"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition ml-auto">
+              清除
             </button>
           </div>
         </div>
-        <div id="patrolResults">
-          <div class="text-sm text-gray-400 text-center py-8">輸入關鍵字後點「開始海巡」</div>
+      </div>
+
+      <!-- 批次模式 -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h3 class="font-medium text-gray-700 mb-1">📋 批次回覆（多則留言）</h3>
+        <p class="text-sm text-gray-400 mb-4">一次輸入多則留言，AI 逐一生成回覆，方便批量處理互動</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+            <select id="editorBatchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">你的貼文摘要</label>
+            <input id="editorBatchPostText" type="text" placeholder="例：電子鎖安裝心得"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">留言列表（每行格式：@帳號 留言內容）</label>
+            <textarea id="editorBatchComments" rows="5"
+              placeholder="@user1 請問這個有保固嗎&#10;@user2 在哪裡可以預約&#10;@user3 價格怎麼算"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono resize-none"></textarea>
+          </div>
         </div>
+        <button onclick="genBatchEditorReplies()" id="btnBatchReply"
+          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          ✨ 批次生成回覆
+        </button>
+        <div id="batchReplyResults" class="mt-4 space-y-3"></div>
       </div>
     </div>
 
@@ -235,6 +526,56 @@
   </main>
 </div>
 
+<!-- ── 排程新增 Modal ──────────────────────────────────────────────────────── -->
+<div id="scheduleModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-bold text-gray-700">新增排程發文</h3>
+      <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">排程名稱</label>
+      <input id="schedName" type="text" placeholder="例：每日早安文"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">發文帳號</label>
+      <select id="schedAccSelect" class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm"></select>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">發文時間（台灣時間，可填多個，逗號分隔）</label>
+      <input id="schedTimes" type="text" placeholder="例：08:00, 12:00, 20:00"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">內容模式</label>
+      <select id="schedMode" onchange="toggleScheduleMode()"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+        <option value="ai">AI 自動生成</option>
+        <option value="fixed">固定文字輪替</option>
+      </select>
+    </div>
+    <div id="schedAiSection">
+      <label class="text-xs text-gray-500 mb-1 block">AI 發文主題 / 指示</label>
+      <textarea id="schedAiPrompt" rows="2" placeholder="例：分享一件今天發生的趣事，或生活感悟"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none"></textarea>
+    </div>
+    <div id="schedFixedSection" class="hidden">
+      <label class="text-xs text-gray-500 mb-1 block">固定貼文內容（多篇請用「---」分隔，輪替發文）</label>
+      <textarea id="schedFixedTexts" rows="4" placeholder="第一篇貼文內容&#10;---&#10;第二篇貼文內容"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none font-mono text-xs"></textarea>
+    </div>
+    <div class="flex gap-2 pt-2">
+      <button onclick="saveSchedule()"
+        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-xl text-sm transition">
+        儲存排程
+      </button>
+      <button onclick="closeScheduleModal()"
+        class="px-4 py-2 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">取消</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── 全域狀態 ──────────────────────────────────────────────────────────────────
 let currentUser  = null;
@@ -315,7 +656,7 @@ async function doLogout() {
 
 // ── 頁籤切換 ─────────────────────────────────────────────────────────────────
 function switchTab(tab) {
-  ["trending","patrol","schedule","accounts","log","admin"].forEach(t => {
+  ["trending","patrol","editor","schedule","accounts","log","admin"].forEach(t => {
     document.getElementById("tabBtn_" + t)?.classList.remove("active");
     document.getElementById("tab" + t.charAt(0).toUpperCase() + t.slice(1))
       ?.classList.toggle("hidden", t !== tab);
@@ -328,7 +669,8 @@ function switchTab(tab) {
   if (tab === "schedule") loadSchedules();
   if (tab === "log")      loadLog();
   if (tab === "admin")    loadAdminUsers();
-  if (tab === "trending" || tab === "patrol") fillAccountSelects();
+  if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
+  if (tab === "patrol")   loadPatrolConfig();
 }
 
 // ── 帳號 ─────────────────────────────────────────────────────────────────────
@@ -344,7 +686,7 @@ function fillAccountSelects() {
   const opts = userAccounts.length
     ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
     : '<option value="">（尚未設定帳號）</option>';
-  ["trendAccount","patrolAccount"].forEach(id => {
+  ["trendAccount","patrolAccount","batchAccount","promoAccount","editorAccount","editorBatchAccount"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts;
   });
@@ -484,30 +826,693 @@ async function postTrendingText() {
 }
 
 // ── 海巡留言 ─────────────────────────────────────────────────────────────────
+let _patrolAccountId = "";
+let _patrolConfig    = {};
+let _promoKeywords   = [];
+let _promoSelectedKw = "";
+
+function switchPatrolTab(tab) {
+  ["quick","batch","promo","config"].forEach(t => {
+    document.getElementById("ptab_" + t)?.classList.toggle("active", t === tab);
+    document.getElementById("ptab" + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle("hidden", t !== tab);
+  });
+  if (tab === "config") loadPatrolConfig();
+  if (tab === "batch")  updateBatchNextKw();
+}
+
+async function loadPatrolConfig() {
+  try {
+    const res  = await fetch("/api/patrol/config");
+    const data = await res.json();
+    if (!data.success) return;
+    _patrolConfig = data.config;
+    renderPatrolConfigUI();
+  } catch(e) {}
+}
+
+function renderPatrolConfigUI() {
+  const cfg = _patrolConfig;
+  // 批次控制
+  const maxC = document.getElementById("cfgMaxComments"); if (maxC) maxC.value = cfg.max_comments ?? 20;
+  const pAfter = document.getElementById("cfgPauseAfter"); if (pAfter) pAfter.value = cfg.pause_after ?? 10;
+  const pMin = document.getElementById("cfgPauseMin"); if (pMin) pMin.value = cfg.pause_minutes ?? 30;
+  // 關鍵字列表
+  renderKwList(cfg.keywords || []);
+  document.getElementById("kwIndexDisplay").textContent = (cfg.kw_index ?? 0) + 1;
+  // 詞句庫
+  const phrases = cfg.phrases || [];
+  document.getElementById("phraseCount").textContent = phrases.length;
+  document.getElementById("phIndexDisplay").textContent = (cfg.ph_index ?? 0) + 1;
+  const phraseArea = document.getElementById("phraseListArea");
+  if (phraseArea) phraseArea.innerHTML = phrases.map((p, i) =>
+    `<div class="${i === cfg.ph_index ? 'font-semibold text-indigo-600' : ''}">${i+1}. ${esc(p)}</div>`
+  ).join("");
+  // 自動海巡
+  const autoChk = document.getElementById("cfgAutoEnabled");
+  if (autoChk) autoChk.checked = !!cfg.auto_enabled;
+  const autoAcc = document.getElementById("cfgAutoAccount");
+  if (autoAcc) {
+    const opts = userAccounts.length
+      ? userAccounts.map(a => `<option value="${esc(a.id)}" ${a.id===cfg.auto_account_id?'selected':''}>${esc(a.name)}</option>`).join("")
+      : '<option value="">（無帳號）</option>';
+    autoAcc.innerHTML = opts;
+  }
+  const autoMode = document.getElementById("cfgAutoMode");
+  if (autoMode) autoMode.value = cfg.auto_mode || "phrase";
+  const autoInt = document.getElementById("cfgAutoInterval");
+  if (autoInt) autoInt.value = String(cfg.auto_interval || 30);
+  const lastRun = document.getElementById("autoLastRun");
+  if (lastRun) lastRun.textContent = cfg.auto_last_run ? cfg.auto_last_run.replace("T", " ").slice(0, 16) : "—";
+  // 更新 batch next kw 顯示
+  updateBatchNextKw();
+}
+
+function toggleAutoPatrol(checkbox) {
+  _patrolConfig.auto_enabled = checkbox.checked ? 1 : 0;
+  savePatrolConfigSilent();
+}
+
+function renderKwList(keywords) {
+  const el = document.getElementById("kwList");
+  if (!el) return;
+  el.innerHTML = keywords.length
+    ? keywords.map((kw, i) => `
+        <span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-lg">
+          ${esc(kw)}
+          <button onclick="removeKeyword(${i})" class="text-indigo-300 hover:text-red-500 ml-1">✕</button>
+        </span>`).join("")
+    : '<span class="text-xs text-gray-400">（尚未設定關鍵字）</span>';
+}
+
+function updateBatchNextKw() {
+  const kws = _patrolConfig.keywords || [];
+  const idx = _patrolConfig.kw_index ?? 0;
+  const el  = document.getElementById("batchNextKw");
+  if (!el) return;
+  el.textContent = kws.length
+    ? `下一組關鍵字：「${kws[idx % kws.length]}」（第 ${(idx % kws.length) + 1}/${kws.length} 組）`
+    : "⚠️ 尚未設定關鍵字，請先到「海巡設定」新增";
+}
+
+async function addKeyword() {
+  const input = document.getElementById("newKwInput");
+  const kw = input.value.trim();
+  if (!kw) return;
+  const kws = [...(_patrolConfig.keywords || []), kw];
+  _patrolConfig.keywords = kws;
+  input.value = "";
+  renderKwList(kws);
+  await savePatrolConfigSilent();
+}
+
+async function removeKeyword(idx) {
+  const kws = (_patrolConfig.keywords || []).filter((_, i) => i !== idx);
+  _patrolConfig.keywords = kws;
+  renderKwList(kws);
+  await savePatrolConfigSilent();
+}
+
+function togglePhraseEdit() {
+  const area  = document.getElementById("phraseListArea");
+  const edit  = document.getElementById("phraseEditArea");
+  const btn   = document.getElementById("btnPhraseEdit");
+  const save  = document.getElementById("btnPhrasesSave");
+  const reset = document.getElementById("btnPhrasesReset");
+  const isEditing = !edit.classList.contains("hidden");
+  if (isEditing) {
+    area.classList.remove("hidden"); edit.classList.add("hidden");
+    save.classList.add("hidden"); reset.classList.add("hidden");
+    btn.textContent = "✏️ 編輯詞句庫";
+  } else {
+    edit.value = (_patrolConfig.phrases || []).join("\n");
+    area.classList.add("hidden"); edit.classList.remove("hidden");
+    save.classList.remove("hidden"); reset.classList.remove("hidden");
+    btn.textContent = "取消";
+  }
+}
+
+async function savePhrases() {
+  const val = document.getElementById("phraseEditArea").value;
+  const phrases = val.split("\n").map(s => s.trim()).filter(Boolean);
+  _patrolConfig.phrases = phrases;
+  _patrolConfig.ph_index = 0;
+  await savePatrolConfigSilent();
+  togglePhraseEdit();
+  renderPatrolConfigUI();
+}
+
+async function resetPhrases() {
+  if (!confirm("確定還原成預設詞句庫嗎？")) return;
+  _patrolConfig.phrases = null; // server will use DEFAULT_PHRASES
+  _patrolConfig.ph_index = 0;
+  await savePatrolConfigSilent();
+  await loadPatrolConfig();
+  togglePhraseEdit();
+}
+
+async function savePatrolConfig() {
+  const max_comments    = parseInt(document.getElementById("cfgMaxComments").value) || 20;
+  const pause_after     = parseInt(document.getElementById("cfgPauseAfter").value) || 10;
+  const pause_minutes   = parseInt(document.getElementById("cfgPauseMin").value) || 30;
+  const auto_account_id = document.getElementById("cfgAutoAccount")?.value || "";
+  const auto_mode       = document.getElementById("cfgAutoMode")?.value || "phrase";
+  const auto_interval   = parseInt(document.getElementById("cfgAutoInterval")?.value) || 30;
+  _patrolConfig = { ..._patrolConfig, max_comments, pause_after, pause_minutes,
+                    auto_account_id, auto_mode, auto_interval };
+  await savePatrolConfigSilent();
+  const el = document.getElementById("patrolConfigSaved");
+  el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+}
+
+async function savePatrolConfigSilent() {
+  await fetch("/api/patrol/config", {
+    method: "PUT", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(_patrolConfig),
+  });
+}
+
+// ── 快速海巡 ─────────────────────────────────────────────────────────────────
+
 async function runPatrol() {
   const keyword   = document.getElementById("patrolKeyword").value.trim();
   const accountId = document.getElementById("patrolAccount").value;
   if (!keyword)   { alert("請輸入搜尋關鍵字"); return; }
   if (!accountId) { alert("請選擇帳號"); return; }
+  _patrolAccountId = accountId;
 
-  document.getElementById("patrolResults").innerHTML =
-    '<div class="text-sm text-gray-400 text-center py-8">搜尋任務已發送到 Extension，請確認 Extension 已安裝並開啟…</div>';
+  const box = document.getElementById("patrolResults");
+  box.innerHTML = '<div class="text-sm text-indigo-500 text-center py-8">⏳ 搜尋任務已發送，等待 Extension 執行（最多 60 秒）…</div>';
 
-  // 把搜尋任務送到後端（Extension 輪詢後執行）
-  await fetch("/api/patrol/search", {
+  const r    = await fetch("/api/patrol/search", {
     method: "POST", headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ account_id: accountId, keyword }),
   });
+  const data = await r.json();
+  if (!data.success) { box.innerHTML = `<div class="text-red-400 text-sm text-center py-8">${esc(data.error)}</div>`; return; }
+
+  const taskId = data.task_id;
+  let waited = 0;
+  const timer = setInterval(async () => {
+    waited += 3;
+    if (waited > 60) {
+      clearInterval(timer);
+      box.innerHTML = '<div class="text-red-400 text-sm text-center py-8">超時，請確認 Extension 已安裝且 Threads 分頁有開著</div>';
+      return;
+    }
+    try {
+      const res  = await fetch(`/api/patrol/result/${taskId}`);
+      const info = await res.json();
+      if (info.status === "done" || info.status === "failed") {
+        clearInterval(timer);
+        renderPatrolResults(info.posts || []);
+      } else {
+        box.innerHTML = `<div class="text-sm text-indigo-500 text-center py-8">⏳ 搜尋中…（${waited}s）</div>`;
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+function renderPatrolResults(posts) {
+  const box = document.getElementById("patrolResults");
+  if (!posts.length) {
+    box.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">沒有找到相關貼文</div>';
+    return;
+  }
+  box.innerHTML = posts.map((p, i) => `
+    <div class="border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50" data-pidx="${i}">
+      <p class="text-sm text-gray-700 mb-2 line-clamp-2">${esc(p.text)}</p>
+      <a href="${esc(p.link)}" target="_blank" class="text-xs text-indigo-400 hover:underline mb-3 block truncate">${esc(p.link)}</a>
+      <div class="flex gap-2 flex-wrap items-start">
+        <button onclick="genPatrolComment(${i})" data-pgen="${i}"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-50 hover:bg-teal-100 text-teal-600 transition">
+          ✨ AI 生成留言
+        </button>
+        <div class="flex-1 min-w-0">
+          <textarea id="patrolComment_${i}" rows="2" placeholder="留言內容（AI 生成後可修改）"
+            class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs resize-none"></textarea>
+          <button onclick="sendPatrolComment(${i}, '${esc(p.link)}')"
+            class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+            💬 送出留言（扣 1 點）
+          </button>
+          <span id="patrolCommentResult_${i}" class="text-xs ml-2"></span>
+        </div>
+      </div>
+    </div>`).join("");
+  window._patrolPosts = posts;
+}
+
+async function genPatrolComment(idx) {
+  const btn = document.querySelector(`[data-pgen="${idx}"]`);
+  btn.textContent = "生成中…"; btn.disabled = true;
+  try {
+    const post = window._patrolPosts[idx];
+    const res  = await fetch("/api/ai/patrol-comment", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: _patrolAccountId, post_text: post.text }),
+    });
+    const data = await res.json();
+    if (data.success) document.getElementById(`patrolComment_${idx}`).value = data.comment;
+    else alert("AI 生成失敗：" + data.error);
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.textContent = "✨ AI 生成留言"; btn.disabled = false; }
+}
+
+async function sendPatrolComment(idx, postUrl) {
+  const comment = document.getElementById(`patrolComment_${idx}`).value.trim();
+  const resEl   = document.getElementById(`patrolCommentResult_${idx}`);
+  if (!comment) { alert("請先輸入或生成留言內容"); return; }
+  resEl.textContent = "發送中…"; resEl.className = "text-xs ml-2 text-gray-400";
+  try {
+    const res  = await fetch("/api/patrol/comment", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: _patrolAccountId, post_url: postUrl, comment }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resEl.textContent = "✓ 任務已發送給 Extension"; resEl.className = "text-xs ml-2 text-green-500";
+    } else {
+      resEl.textContent = "失敗：" + data.error; resEl.className = "text-xs ml-2 text-red-500";
+    }
+  } catch(e) { resEl.textContent = "網路錯誤"; resEl.className = "text-xs ml-2 text-red-500"; }
+}
+
+// ── 自動批次海巡 ─────────────────────────────────────────────────────────────
+
+async function runBatchPatrol() {
+  const accountId = document.getElementById("batchAccount").value;
+  const mode      = document.getElementById("batchMode").value;
+  const kws = _patrolConfig.keywords || [];
+  if (!accountId) { alert("請選擇帳號"); return; }
+  if (!kws.length) { alert("請先到「海巡設定」新增關鍵字"); return; }
+
+  const idx     = _patrolConfig.kw_index ?? 0;
+  const keyword = kws[idx % kws.length];
+  const btn     = document.getElementById("btnBatch");
+  const box     = document.getElementById("batchResult");
+  btn.disabled  = true; btn.textContent = "搜尋中…";
+  box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 正在搜尋「${esc(keyword)}」，等待 Extension…</div>`;
+
+  // 1. 發搜尋任務
+  const r = await fetch("/api/patrol/search", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ account_id: accountId, keyword }),
+  });
+  const d = await r.json();
+  if (!d.success) { box.innerHTML = `<div class="text-red-400 text-sm py-4">${esc(d.error)}</div>`; btn.disabled=false; btn.textContent="🤖 執行批次海巡"; return; }
+
+  // 2. 輪詢結果
+  const taskId = d.task_id;
+  let waited = 0;
+  const timer = setInterval(async () => {
+    waited += 3;
+    if (waited > 90) {
+      clearInterval(timer);
+      box.innerHTML = '<div class="text-red-400 text-sm py-4">超時，請確認 Extension 有在運作</div>';
+      btn.disabled=false; btn.textContent="🤖 執行批次海巡";
+      return;
+    }
+    box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋中…（${waited}s）</div>`;
+    try {
+      const res  = await fetch(`/api/patrol/result/${taskId}`);
+      const info = await res.json();
+      if (info.status === "done" || info.status === "failed") {
+        clearInterval(timer);
+        const posts = info.posts || [];
+        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🤖 執行批次海巡"; return; }
+        // 3. 批次留言
+        box.innerHTML = `<div class="text-sm text-indigo-500 py-2">找到 ${posts.length} 篇，正在建立留言任務…</div>`;
+        const batchRes = await fetch("/api/patrol/batch-comment", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ account_id: accountId, posts, mode }),
+        });
+        const batchData = await batchRes.json();
+        if (batchData.success) {
+          // 更新 kw_index
+          _patrolConfig.kw_index = ((idx + 1) % kws.length);
+          await savePatrolConfigSilent();
+          updateBatchNextKw();
+          box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個留言任務，Extension 會陸續執行</div>`;
+        } else {
+          box.innerHTML = `<div class="text-red-400 text-sm py-2">批次建立失敗：${esc(batchData.error)}</div>`;
+        }
+        btn.disabled=false; btn.textContent="🤖 執行批次海巡";
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+// ── 推廣模式 ─────────────────────────────────────────────────────────────────
+
+async function genPromoKeywords() {
+  const accountId = document.getElementById("promoAccount").value;
+  const desc      = document.getElementById("promoDesc").value.trim();
+  const audience  = document.getElementById("promoAudience").value.trim();
+  if (!accountId) { alert("請選擇帳號"); return; }
+  if (!desc)      { alert("請輸入產品描述"); return; }
+  const btn = document.getElementById("btnGenKw");
+  btn.disabled = true; btn.textContent = "生成中…";
+  try {
+    const res  = await fetch("/api/ai/patrol-keywords", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: accountId, product_desc: desc, target_audience: audience }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      _promoKeywords = data.keywords;
+      _promoSelectedKw = _promoKeywords[0] || "";
+      document.getElementById("promoKwList").innerHTML = _promoKeywords.map((kw, i) =>
+        `<button onclick="selectPromoKw(${i}, this)" data-idx="${i}"
+          class="px-3 py-1 rounded-lg text-xs font-medium border transition ${i===0 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}">${esc(kw)}</button>`
+      ).join("");
+      document.getElementById("promoKwSelected").textContent = `已選：「${_promoSelectedKw}」`;
+      document.getElementById("btnPromo").classList.remove("hidden");
+    } else alert("AI 生成失敗：" + data.error);
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.disabled=false; btn.textContent="✨ AI 生成關鍵字"; }
+}
+
+function selectPromoKw(idx, btnEl) {
+  _promoSelectedKw = _promoKeywords[idx];
+  document.querySelectorAll("#promoKwList button").forEach((b, i) => {
+    b.className = `px-3 py-1 rounded-lg text-xs font-medium border transition ${i===idx ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`;
+  });
+  document.getElementById("promoKwSelected").textContent = `已選：「${_promoSelectedKw}」`;
+}
+
+async function runPromoPatrol() {
+  const accountId = document.getElementById("promoAccount").value;
+  const desc      = document.getElementById("promoDesc").value.trim();
+  const url       = document.getElementById("promoUrl").value.trim();
+  if (!accountId || !_promoSelectedKw) { alert("請選擇帳號並選定關鍵字"); return; }
+  const btn = document.getElementById("btnPromo");
+  const box = document.getElementById("promoResult");
+  btn.disabled = true; btn.textContent = "搜尋中…";
+  box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋「${esc(_promoSelectedKw)}」，等待 Extension…</div>`;
+
+  const r = await fetch("/api/patrol/search", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ account_id: accountId, keyword: _promoSelectedKw }),
+  });
+  const d = await r.json();
+  if (!d.success) { box.innerHTML = `<div class="text-red-400 text-sm py-4">${esc(d.error)}</div>`; btn.disabled=false; btn.textContent="🚀 開始推廣海巡"; return; }
+
+  const taskId = d.task_id;
+  let waited = 0;
+  const timer = setInterval(async () => {
+    waited += 3;
+    if (waited > 90) {
+      clearInterval(timer);
+      box.innerHTML = '<div class="text-red-400 text-sm py-4">超時，請確認 Extension 有在運作</div>';
+      btn.disabled=false; btn.textContent="🚀 開始推廣海巡";
+      return;
+    }
+    box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋中…（${waited}s）</div>`;
+    try {
+      const res  = await fetch(`/api/patrol/result/${taskId}`);
+      const info = await res.json();
+      if (info.status === "done" || info.status === "failed") {
+        clearInterval(timer);
+        const posts = info.posts || [];
+        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🚀 開始推廣海巡"; return; }
+        box.innerHTML = `<div class="text-sm text-indigo-500 py-2">找到 ${posts.length} 篇，AI 正在生成推廣留言…（稍慢）</div>`;
+        const batchRes = await fetch("/api/patrol/batch-comment", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ account_id: accountId, posts, mode: "promo", product_desc: desc, product_url: url }),
+        });
+        const batchData = await batchRes.json();
+        if (batchData.success) {
+          box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個推廣留言任務，Extension 會陸續執行</div>`;
+        } else {
+          box.innerHTML = `<div class="text-red-400 text-sm py-2">失敗：${esc(batchData.error)}</div>`;
+        }
+        btn.disabled=false; btn.textContent="🚀 開始推廣海巡";
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+// ── AI 小編回覆 ──────────────────────────────────────────────────────────────
+
+async function genEditorReply() {
+  const accountId    = document.getElementById("editorAccount").value;
+  const postText     = document.getElementById("editorPostText").value.trim();
+  const commenter    = document.getElementById("editorCommenter").value.trim();
+  const commentText  = document.getElementById("editorCommentText").value.trim();
+  const productTitle = document.getElementById("editorProductTitle").value.trim();
+  const productUrl   = document.getElementById("editorProductUrl").value.trim();
+
+  if (!accountId)   { alert("請選擇帳號"); return; }
+  if (!commentText) { alert("請輸入對方的留言內容"); return; }
+
+  const btn = document.getElementById("btnEditorReply");
+  btn.disabled = true; btn.textContent = "生成中…";
+
+  try {
+    const res  = await fetch("/api/ai/editor-reply", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id: accountId, post_text: postText,
+        comment_author: commenter, comment_text: commentText,
+        product_title: productTitle, product_url: productUrl,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("editorReplyText").value = data.reply;
+      document.getElementById("editorReplyResult").classList.remove("hidden");
+    } else {
+      alert("AI 生成失敗：" + data.error);
+    }
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.disabled = false; btn.textContent = "✨ AI 生成回覆"; }
+}
+
+async function copyEditorReply() {
+  const text = document.getElementById("editorReplyText").value;
+  try {
+    await navigator.clipboard.writeText(text);
+    const el = document.getElementById("editorCopied");
+    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+  } catch(e) { alert("複製失敗，請手動選取"); }
+}
+
+async function sendEditorReply() {
+  const postUrl   = document.getElementById("editorPostUrl").value.trim();
+  const replyText = document.getElementById("editorReplyText").value.trim();
+  const accountId = document.getElementById("editorAccount").value;
+  const resEl     = document.getElementById("editorSendResult");
+
+  if (!postUrl)   { alert("請填入貼文連結（Extension 需要知道去哪回覆）"); return; }
+  if (!replyText) { alert("請先生成或輸入回覆內容"); return; }
+
+  const btn = document.getElementById("btnSendReply");
+  btn.disabled = true; btn.textContent = "發送中…";
+  resEl.textContent = ""; resEl.className = "text-xs self-center";
+
+  try {
+    const res  = await fetch("/api/editor/send-reply", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id:   accountId,
+        post_url:     postUrl,
+        comment_author: document.getElementById("editorCommenter").value.trim(),
+        comment_text: document.getElementById("editorCommentText").value.trim(),
+        reply_text:   replyText,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resEl.textContent = "✓ 任務已發送給 Extension";
+      resEl.className   = "text-xs self-center text-green-500";
+    } else {
+      resEl.textContent = "失敗：" + data.error;
+      resEl.className   = "text-xs self-center text-red-500";
+    }
+  } catch(e) {
+    resEl.textContent = "網路錯誤"; resEl.className = "text-xs self-center text-red-500";
+  }
+  btn.disabled = false; btn.textContent = "💬 送出回覆（扣 1 點）";
+}
+
+function clearEditorForm() {
+  ["editorPostText","editorPostUrl","editorCommenter","editorCommentText",
+   "editorProductTitle","editorProductUrl","editorReplyText"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  document.getElementById("editorReplyResult").classList.add("hidden");
+  document.getElementById("editorSendResult").textContent = "";
+}
+
+async function genBatchEditorReplies() {
+  const accountId = document.getElementById("editorBatchAccount").value;
+  const postText  = document.getElementById("editorBatchPostText").value.trim();
+  const rawLines  = document.getElementById("editorBatchComments").value.trim().split("\n").filter(Boolean);
+
+  if (!accountId)       { alert("請選擇帳號"); return; }
+  if (!rawLines.length) { alert("請輸入留言列表"); return; }
+
+  const btn = document.getElementById("btnBatchReply");
+  const box = document.getElementById("batchReplyResults");
+  btn.disabled = true; btn.textContent = "生成中…";
+  box.innerHTML = '<div class="text-sm text-indigo-500">AI 生成中，請稍候…</div>';
+
+  // 解析每行 "@帳號 留言內容"
+  const comments = rawLines.map(line => {
+    const m = line.match(/^@?(\S+)\s+([\s\S]+)$/);
+    return m ? { author: m[1], text: m[2].trim() } : { author: "", text: line.trim() };
+  });
+
+  const results = [];
+  for (const c of comments) {
+    try {
+      const res  = await fetch("/api/ai/editor-reply", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          account_id: accountId, post_text: postText,
+          comment_author: c.author, comment_text: c.text,
+        }),
+      });
+      const data = await res.json();
+      results.push({ ...c, reply: data.success ? data.reply : "（生成失敗）", ok: data.success });
+    } catch(e) {
+      results.push({ ...c, reply: "（網路錯誤）", ok: false });
+    }
+  }
+
+  box.innerHTML = results.map((r, i) => `
+    <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
+      <div class="text-xs text-gray-500 mb-1">${r.author ? `@${esc(r.author)} ` : ""}「${esc(r.text.slice(0,60))}${r.text.length>60?'…':''}」</div>
+      <textarea id="batchReply_${i}" rows="2" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none ${r.ok?'':'bg-red-50 border-red-200'}">${esc(r.reply)}</textarea>
+      <button onclick="copyBatchReply(${i})" class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-teal-50 hover:bg-teal-100 text-teal-600 transition">
+        📋 複製
+      </button>
+      <span id="batchCopied_${i}" class="text-xs text-green-500 ml-2 hidden">已複製</span>
+    </div>`).join("");
+
+  btn.disabled = false; btn.textContent = "✨ 批次生成回覆";
+}
+
+async function copyBatchReply(idx) {
+  const text = document.getElementById(`batchReply_${idx}`).value;
+  try {
+    await navigator.clipboard.writeText(text);
+    const el = document.getElementById(`batchCopied_${idx}`);
+    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+  } catch(e) {}
 }
 
 // ── 排程發文 ─────────────────────────────────────────────────────────────────
+let _schedules = [];
+
 async function loadSchedules() {
-  // 暫時顯示 coming soon
-  document.getElementById("scheduleList").innerHTML =
-    '<div class="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-sm">排程功能開發中，即將推出</div>';
+  try {
+    const res  = await fetch("/api/schedules");
+    const data = await res.json();
+    _schedules = data.schedules || [];
+    renderScheduleList();
+  } catch(e) {}
 }
 
-function openAddSchedule() { alert("排程功能即將推出！"); }
+function renderScheduleList() {
+  const el = document.getElementById("scheduleList");
+  if (!_schedules.length) {
+    el.innerHTML = '<div class="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-sm">尚無排程，點右上角「＋ 新增排程」</div>';
+    return;
+  }
+  el.innerHTML = _schedules.map(s => {
+    const times = JSON.parse(s.times || "[]").join("、") || "（未設定時間）";
+    const acc   = userAccounts.find(a => a.id === s.account_id);
+    return `
+    <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center justify-between gap-3">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-medium text-gray-700">${esc(s.name)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${s.enabled ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}">
+            ${s.enabled ? "啟用中" : "已停用"}
+          </span>
+        </div>
+        <div class="text-xs text-gray-400">
+          帳號：${esc(acc?.name || s.account_id)} ·
+          發文時間：${esc(times)} ·
+          模式：${s.content_mode === "fixed" ? "固定文字" : "AI 生成"}
+        </div>
+        ${s.last_run ? `<div class="text-xs text-gray-300 mt-0.5">上次執行：${esc(s.last_run)}</div>` : ""}
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button onclick="toggleSchedule('${esc(s.id)}', ${s.enabled ? 0 : 1})"
+          class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500">
+          ${s.enabled ? "停用" : "啟用"}
+        </button>
+        <button onclick="deleteSchedule('${esc(s.id)}')"
+          class="text-xs px-3 py-1.5 rounded-lg text-red-400 hover:text-red-600">刪除</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openAddSchedule() {
+  document.getElementById("scheduleModal").classList.remove("hidden");
+  fillScheduleAccountSelect();
+}
+
+function fillScheduleAccountSelect() {
+  const sel = document.getElementById("schedAccSelect");
+  if (!sel) return;
+  sel.innerHTML = userAccounts.length
+    ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
+    : '<option value="">（請先新增帳號）</option>';
+}
+
+function closeScheduleModal() {
+  document.getElementById("scheduleModal").classList.add("hidden");
+}
+
+function toggleScheduleMode() {
+  const mode = document.getElementById("schedMode").value;
+  document.getElementById("schedAiSection").classList.toggle("hidden", mode !== "ai");
+  document.getElementById("schedFixedSection").classList.toggle("hidden", mode !== "fixed");
+}
+
+async function saveSchedule() {
+  const name  = document.getElementById("schedName").value.trim();
+  const accId = document.getElementById("schedAccSelect").value;
+  const times = document.getElementById("schedTimes").value.split(/[,\s，]+/)
+    .map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
+  const mode  = document.getElementById("schedMode").value;
+  const aiPrompt   = document.getElementById("schedAiPrompt").value.trim();
+  const fixedTexts = document.getElementById("schedFixedTexts").value
+    .split("\n---\n").map(t => t.trim()).filter(Boolean);
+
+  if (!name)       { alert("請填入排程名稱"); return; }
+  if (!accId)      { alert("請選擇帳號"); return; }
+  if (!times.length) { alert("請輸入至少一個時間（格式：HH:MM）"); return; }
+
+  const res  = await fetch("/api/schedules", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, account_id: accId, times, content_mode: mode,
+                           ai_prompt: aiPrompt, fixed_texts: fixedTexts }),
+  });
+  const data = await res.json();
+  if (data.success) {
+    closeScheduleModal();
+    await loadSchedules();
+  } else { alert("儲存失敗：" + data.error); }
+}
+
+async function toggleSchedule(id, enabled) {
+  await fetch(`/api/schedules/${id}`, {
+    method: "PUT", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ enabled }),
+  });
+  await loadSchedules();
+}
+
+async function deleteSchedule(id) {
+  if (!confirm("確定刪除這個排程？")) return;
+  await fetch(`/api/schedules/${id}`, { method: "DELETE" });
+  await loadSchedules();
+}
 
 // ── 使用記錄 ─────────────────────────────────────────────────────────────────
 async function loadLog() {

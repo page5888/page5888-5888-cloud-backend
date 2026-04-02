@@ -15,7 +15,11 @@ from modules.db import (
     init_db, get_or_create_user, get_user, get_all_users,
     add_credits, set_blocked, deduct_credit,
     get_accounts, add_account, update_account, delete_account, get_account,
-    push_task, pop_pending_tasks, complete_task,
+    push_task, pop_pending_tasks, complete_task, get_task_result,
+    get_schedules, add_schedule, update_schedule, toggle_schedule, delete_schedule,
+    get_due_schedules, mark_schedule_run, advance_fixed_index,
+    get_patrol_config, save_patrol_config, pop_next_phrase, pop_next_keyword,
+    should_auto_patrol, mark_auto_patrol_run, get_task_payload,
     log_action, get_action_log,
 )
 
@@ -106,6 +110,11 @@ def auth_logout():
 # ── 頁面 ─────────────────────────────────────────────────────────────────────
 
 @app.route("/")
+def landing():
+    return render_template("landing.html")
+
+
+@app.route("/app")
 def index():
     return render_template("index.html",
                            google_client_id=GOOGLE_CLIENT_ID)
@@ -176,14 +185,134 @@ def api_credits():
     return jsonify({"success": True, "credits": user["credits"], "daily_used": user["daily_used"]})
 
 
-# ── Extension API（Extension 輪詢這些端點） ───────────────────────────────────
+# ── 排程 ─────────────────────────────────────────────────────────────────────
 
-@app.route("/ext/tasks", methods=["GET"])
-def ext_get_tasks():
-    """Extension 輪詢：取得待執行任務列表。"""
+@app.route("/api/schedules", methods=["GET"])
+def api_get_schedules():
     email = session.get("email")
     if not email:
         return jsonify({"success": False, "error": "未登入"}), 401
+    return jsonify({"success": True, "schedules": get_schedules(email)})
+
+
+@app.route("/api/schedules", methods=["POST"])
+def api_add_schedule():
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data = request.json or {}
+    if not data.get("name"):
+        return jsonify({"success": False, "error": "名稱為必填"}), 400
+    s = add_schedule(email, data)
+    return jsonify({"success": True, "id": s["id"]})
+
+
+@app.route("/api/schedules/<sid>", methods=["PUT"])
+def api_update_schedule(sid):
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data = request.json or {}
+    if "enabled" in data:
+        toggle_schedule(sid, email, bool(data["enabled"]))
+    else:
+        update_schedule(sid, email, data)
+    return jsonify({"success": True})
+
+
+@app.route("/api/schedules/<sid>", methods=["DELETE"])
+def api_delete_schedule(sid):
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    delete_schedule(sid, email)
+    return jsonify({"success": True})
+
+
+# ── Extension API（Extension 輪詢這些端點） ───────────────────────────────────
+
+def _run_due_schedules(email: str):
+    """檢查並執行到期的排程（直接用 Threads API 發文，不需要 Extension）。"""
+    from modules.threads_api import create_post
+    from modules.ai_reply import generate_schedule_post
+
+    due = get_due_schedules(email)
+    for sched in due:
+        run_key = sched["_run_key"]
+        mark_schedule_run(sched["id"], run_key)  # 先標記避免重複
+
+        acc = get_account(sched["account_id"], email)
+        if not acc or not acc.get("access_token"):
+            continue
+
+        result = deduct_credit(email)
+        if not result["ok"]:
+            continue
+
+        try:
+            text = ""
+            if sched["content_mode"] == "fixed":
+                texts = json.loads(sched.get("fixed_texts") or "[]")
+                if texts:
+                    idx  = sched.get("fixed_index", 0)
+                    text = texts[idx % len(texts)]
+                    advance_fixed_index(sched["id"], idx, len(texts))
+            if not text:
+                gemini_key = acc.get("gemini_key", "")
+                prompt     = sched.get("ai_prompt", "") or "寫一篇今日心情短文"
+                gen        = generate_schedule_post(gemini_key, acc, prompt)
+                text       = gen.get("text", "")
+
+            if text:
+                post_result = create_post(acc["access_token"], text)
+                if post_result["success"]:
+                    log_action(email, "schedule_post", text[:100])
+                else:
+                    add_credits(email, 1)  # 發文失敗退點
+        except Exception:
+            add_credits(email, 1)
+
+
+def _trigger_auto_patrol(email: str):
+    """若到時間，自動推送下一組海巡搜尋任務。"""
+    if not should_auto_patrol(email):
+        return
+    mark_auto_patrol_run(email)
+    cfg     = get_patrol_config(email)
+    kws     = cfg.get("keywords", [])
+    if not kws:
+        return
+    idx     = cfg.get("kw_index", 0) % len(kws)
+    keyword = kws[idx]
+    acc_id  = cfg.get("auto_account_id", "")
+    mode    = cfg.get("auto_mode", "phrase")
+    # 推搜尋任務，payload 帶 auto=True 讓 /ext/done 知道要自動留言
+    push_task(email, acc_id, "search", {
+        "keyword": keyword,
+        "auto": True,
+        "auto_mode": mode,
+        "kw_index": idx,
+    })
+    # 推進關鍵字索引
+    from modules.db import _lock, _conn
+    import json as _json
+    with _lock, _conn() as c:
+        new_idx = (idx + 1) % len(kws)
+        c.execute("""
+            INSERT INTO patrol_config (user_email, kw_index)
+            VALUES (?,?)
+            ON CONFLICT(user_email) DO UPDATE SET kw_index=excluded.kw_index
+        """, (email, new_idx))
+
+
+@app.route("/ext/tasks", methods=["GET"])
+def ext_get_tasks():
+    """Extension 輪詢：取得待執行任務列表，同時觸發排程與自動海巡。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    threading.Thread(target=_run_due_schedules, args=(email,), daemon=True).start()
+    threading.Thread(target=_trigger_auto_patrol, args=(email,), daemon=True).start()
     tasks = pop_pending_tasks(email)
     return jsonify({"success": True, "tasks": tasks})
 
@@ -199,17 +328,48 @@ def ext_task_done():
     task_id = data.get("task_id")
     success = data.get("success", False)
     detail  = data.get("detail", "")
+    posts   = data.get("posts", [])
 
     if not task_id:
         return jsonify({"success": False, "error": "缺少 task_id"}), 400
 
-    complete_task(task_id, success)
+    # 取得任務 payload（用於自動海巡判斷）
+    task_payload = get_task_payload(task_id)
+
+    complete_task(task_id, success, posts if posts else None)
 
     if success:
         result = deduct_credit(email)
         if not result["ok"]:
             return jsonify({"success": False, "error": result["reason"]})
         log_action(email, data.get("type", "action"), detail)
+
+    # 自動海巡：搜尋完成後自動建立留言任務
+    if success and data.get("type") == "search" and task_payload.get("auto") and posts:
+        def _auto_batch(email, posts, task_payload):
+            try:
+                acc_id = task_payload.get("auto_account_id") or task_payload.get("account_id", "")
+                mode   = task_payload.get("auto_mode", "phrase")
+                cfg    = get_patrol_config(email)
+                acc_id = acc_id or cfg.get("auto_account_id", "")
+                max_c  = cfg.get("max_comments", 20)
+                acc    = get_account(acc_id, email)
+                for post in posts[:max_c]:
+                    comment = ""
+                    if mode == "ai" and acc and acc.get("gemini_key"):
+                        from modules.ai_reply import generate_patrol_comment
+                        r = generate_patrol_comment(acc["gemini_key"], acc, post.get("text", ""))
+                        comment = r.get("comment", "") if r.get("success") else ""
+                    if not comment:
+                        comment = pop_next_phrase(email)
+                    if comment:
+                        push_task(email, acc_id, "comment", {
+                            "post_url": post.get("link", ""),
+                            "comment_text": comment,
+                        })
+            except Exception:
+                pass
+        threading.Thread(target=_auto_batch, args=(email, posts, task_payload), daemon=True).start()
 
     return jsonify({"success": True})
 
@@ -251,6 +411,94 @@ def api_ai_generate():
 
     from modules.ai_reply import generate_schedule_post
     return jsonify(generate_schedule_post(gemini_key, acc, prompt))
+
+
+@app.route("/api/ai/editor-reply", methods=["POST"])
+def api_ai_editor_reply():
+    """AI 小編模式：針對自己貼文收到的留言，生成品牌口吻的回覆（不扣點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+
+    data   = request.json or {}
+    acc_id = data.get("account_id")
+    acc    = get_account(acc_id, email)
+    if not acc:
+        return jsonify({"success": False, "error": "帳號不存在"}), 404
+
+    gemini_key = acc.get("gemini_key") or data.get("gemini_key", "")
+    if not gemini_key:
+        return jsonify({"success": False, "error": "請先設定 Gemini API Key"}), 400
+
+    from modules.ai_reply import generate_editor_reply
+    return jsonify(generate_editor_reply(
+        gemini_key, acc,
+        data.get("post_text", ""),
+        data.get("comment_author", ""),
+        data.get("comment_text", ""),
+        data.get("product_title", ""),
+        data.get("product_url", ""),
+    ))
+
+
+@app.route("/api/ai/patrol-comment", methods=["POST"])
+def api_ai_patrol_comment():
+    """針對指定貼文生成留言（不扣點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+
+    data   = request.json or {}
+    acc_id = data.get("account_id")
+    acc    = get_account(acc_id, email)
+    if not acc:
+        return jsonify({"success": False, "error": "帳號不存在"}), 404
+
+    gemini_key = acc.get("gemini_key") or data.get("gemini_key", "")
+    if not gemini_key:
+        return jsonify({"success": False, "error": "請先設定 Gemini API Key"}), 400
+
+    from modules.ai_reply import generate_patrol_comment
+    return jsonify(generate_patrol_comment(
+        gemini_key, acc, data.get("post_text", "")
+    ))
+
+
+@app.route("/api/editor/send-reply", methods=["POST"])
+def api_editor_send_reply():
+    """推送回覆留言任務到 Extension（扣 1 點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data = request.json or {}
+    post_url    = data.get("post_url", "").strip()
+    reply_text  = data.get("reply_text", "").strip()
+    acc_id      = data.get("account_id", "")
+    if not post_url or not reply_text:
+        return jsonify({"success": False, "error": "缺少貼文連結或回覆內容"}), 400
+    task_id = push_task(email, acc_id, "reply_comment", {
+        "post_url":          post_url,
+        "comment_author":    data.get("comment_author", ""),
+        "comment_text_hint": data.get("comment_text", "")[:30],
+        "reply_text":        reply_text,
+    })
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/api/patrol/comment", methods=["POST"])
+def api_patrol_comment():
+    """推送留言任務到 Extension。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data     = request.json or {}
+    post_url = data.get("post_url", "")
+    comment  = data.get("comment", "").strip()
+    acc_id   = data.get("account_id", "")
+    if not post_url or not comment:
+        return jsonify({"success": False, "error": "缺少必填欄位"}), 400
+    task_id = push_task(email, acc_id, "comment", {"post_url": post_url, "comment_text": comment})
+    return jsonify({"success": True, "task_id": task_id})
 
 
 @app.route("/api/ai/trending-rewrite", methods=["POST"])
@@ -369,6 +617,98 @@ def api_log():
     return jsonify({"success": True, "log": get_action_log(email)})
 
 
+# ── 海巡設定 ──────────────────────────────────────────────────────────────────
+
+@app.route("/api/patrol/config", methods=["GET"])
+def api_patrol_config_get():
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    return jsonify({"success": True, "config": get_patrol_config(email)})
+
+
+@app.route("/api/patrol/config", methods=["PUT"])
+def api_patrol_config_put():
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    save_patrol_config(email, request.json or {})
+    return jsonify({"success": True})
+
+
+@app.route("/api/ai/patrol-keywords", methods=["POST"])
+def api_ai_patrol_keywords():
+    """根據產品描述 AI 生成海巡關鍵字。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data   = request.json or {}
+    acc_id = data.get("account_id")
+    acc    = get_account(acc_id, email)
+    if not acc:
+        return jsonify({"success": False, "error": "帳號不存在"}), 404
+    gemini_key = acc.get("gemini_key") or data.get("gemini_key", "")
+    if not gemini_key:
+        return jsonify({"success": False, "error": "請先設定 Gemini API Key"}), 400
+    from modules.ai_reply import generate_promo_keywords
+    return jsonify(generate_promo_keywords(
+        gemini_key, data.get("product_desc", ""), data.get("target_audience", "")
+    ))
+
+
+@app.route("/api/patrol/batch-comment", methods=["POST"])
+def api_patrol_batch_comment():
+    """批次建立留言任務：從關鍵字輪換中取一組，加上詞句庫輪換留言。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+
+    data     = request.json or {}
+    posts    = data.get("posts", [])   # [{link, text}, ...]
+    acc_id   = data.get("account_id", "")
+    mode     = data.get("mode", "phrase")  # "phrase" | "ai" | "promo"
+    acc      = get_account(acc_id, email)
+    if not acc:
+        return jsonify({"success": False, "error": "帳號不存在"}), 404
+
+    cfg = get_patrol_config(email)
+    max_c   = cfg.get("max_comments", 20)
+    posts   = posts[:max_c]
+    tasks   = []
+
+    for post in posts:
+        comment = ""
+        if mode == "phrase":
+            comment = pop_next_phrase(email)
+        elif mode == "ai":
+            gemini_key = acc.get("gemini_key", "")
+            if gemini_key:
+                from modules.ai_reply import generate_patrol_comment
+                r = generate_patrol_comment(gemini_key, acc, post.get("text", ""))
+                comment = r.get("comment", "") if r.get("success") else pop_next_phrase(email)
+            else:
+                comment = pop_next_phrase(email)
+        elif mode == "promo":
+            gemini_key = acc.get("gemini_key", "")
+            product_desc = data.get("product_desc", "")
+            product_url  = data.get("product_url", "")
+            if gemini_key and product_desc:
+                from modules.ai_reply import generate_promo_comment
+                r = generate_promo_comment(gemini_key, post.get("text", ""), "", product_desc, product_url)
+                comment = r.get("comment", "") if r.get("success") else ""
+            if not comment:
+                comment = pop_next_phrase(email)
+
+        if comment:
+            task_id = push_task(email, acc_id, "comment", {
+                "post_url": post.get("link", ""),
+                "comment_text": comment,
+            })
+            tasks.append({"task_id": task_id, "comment": comment, "post_url": post.get("link", "")})
+
+    return jsonify({"success": True, "tasks": tasks, "count": len(tasks)})
+
+
 # ── 海巡搜尋任務（Extension 輪詢後執行） ─────────────────────────────────────
 
 @app.route("/api/patrol/search", methods=["POST"])
@@ -383,6 +723,22 @@ def api_patrol_search():
         return jsonify({"success": False, "error": "關鍵字不能空白"}), 400
     task_id = push_task(email, account_id, "search", {"keyword": keyword})
     return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/api/patrol/result/<task_id>")
+def api_patrol_result(task_id):
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    task = get_task_result(task_id, email)
+    if not task:
+        return jsonify({"success": False, "error": "找不到任務"}), 404
+    return jsonify({
+        "success": True,
+        "status": task["status"],
+        "posts": task.get("result") or [],
+        "detail": task.get("payload", ""),
+    })
 
 
 # ── 啟動 ─────────────────────────────────────────────────────────────────────
