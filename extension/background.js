@@ -259,9 +259,16 @@ async function executeTask(task) {
             input.focus();
             document.execCommand("insertText", false, txt);
             return wait(500).then(() => {
-              const btn = [...document.querySelectorAll("button")].find(b =>
-                b.innerText?.match(/Post|發布|Reply/i));
-              if (!btn) return { success: false, detail: "找不到送出按鈕" };
+              // 從 input 往上找最近的送出按鈕（避免誤點頁面其他 Reply/Follow 按鈕）
+              let el = input, btn = null;
+              for (let i = 0; i < 8 && el && !btn; i++) {
+                btn = [...el.querySelectorAll("button")].find(b =>
+                  b.innerText?.match(/^(Post|發布|張貼|Submit)$/i));
+                el = el.parentElement;
+              }
+              // fallback：aria-label 精確找
+              if (!btn) btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
+              if (!btn) return { success: false, detail: "找不到送出按鈕（非追蹤按鈕）" };
               btn.click();
               return wait(1000).then(() => ({ success: true, detail: "留言成功: " + txt.slice(0, 30) }));
             });
@@ -315,7 +322,13 @@ async function executeTask(task) {
             input.focus();
             document.execCommand("insertText", false, txt);
             return wait(500).then(() => {
-              const btn = [...document.querySelectorAll("button")].find(b => b.innerText?.match(/Post|發布|Reply|回覆/i));
+              let el = input, btn = null;
+              for (let i = 0; i < 8 && el && !btn; i++) {
+                btn = [...el.querySelectorAll("button")].find(b =>
+                  b.innerText?.match(/^(Post|發布|張貼|Submit)$/i));
+                el = el.parentElement;
+              }
+              if (!btn) btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
               if (!btn) return { success: false, detail: "找不到送出按鈕" };
               btn.click();
               return wait(1000).then(() => ({ success: true, detail: "回覆成功: " + txt.slice(0, 30) }));
