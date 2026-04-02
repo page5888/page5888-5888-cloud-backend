@@ -269,6 +269,32 @@ def complete_task(task_id: str, success: bool, result: list = None):
         )
 
 
+def get_queue_status(user_email: str) -> dict:
+    with _lock, _conn() as c:
+        pending = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE user_email=? AND status IN ('pending','running')",
+            (user_email,)
+        ).fetchone()[0]
+        done = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE user_email=? AND status='done' AND executed_at > datetime('now','-1 hour')",
+            (user_email,)
+        ).fetchone()[0]
+        failed = c.execute(
+            "SELECT COUNT(*) FROM tasks WHERE user_email=? AND status='failed' AND executed_at > datetime('now','-1 hour')",
+            (user_email,)
+        ).fetchone()[0]
+        return {"pending": pending, "done_1h": done, "failed_1h": failed}
+
+
+def cancel_pending_tasks(user_email: str) -> int:
+    with _lock, _conn() as c:
+        c.execute(
+            "UPDATE tasks SET status='cancelled' WHERE user_email=? AND status IN ('pending','running')",
+            (user_email,)
+        )
+        return c.execute("SELECT changes()").fetchone()[0]
+
+
 def get_task_result(task_id: str, user_email: str) -> dict | None:
     with _lock, _conn() as c:
         row = c.execute(

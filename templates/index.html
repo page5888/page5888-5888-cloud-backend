@@ -178,10 +178,37 @@
             </div>
           </div>
           <div id="batchNextKw" class="text-xs text-gray-500 mb-4 bg-gray-50 rounded-lg px-3 py-2">下一組關鍵字：讀取中…</div>
-          <button onclick="runBatchPatrol()" id="btnBatch"
-            class="px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
-            🤖 執行批次海巡
-          </button>
+          <div class="flex gap-3 items-center flex-wrap mb-4">
+            <button onclick="runBatchPatrol()" id="btnBatch"
+              class="px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+              🤖 執行批次海巡
+            </button>
+            <button onclick="stopBatch()" id="btnStop"
+              class="px-5 py-2.5 rounded-xl text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition hidden">
+              ⏹ 停止
+            </button>
+          </div>
+          <!-- 進度條 -->
+          <div id="batchProgress" class="hidden mb-4 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-medium text-gray-700">執行進度</span>
+              <span id="batchTimer" class="text-xs text-gray-400"></span>
+            </div>
+            <div class="flex gap-4 text-center">
+              <div class="flex-1 bg-white rounded-lg py-2 border border-gray-100">
+                <div id="statPending" class="text-xl font-bold text-indigo-500">-</div>
+                <div class="text-xs text-gray-400 mt-0.5">排隊中</div>
+              </div>
+              <div class="flex-1 bg-white rounded-lg py-2 border border-gray-100">
+                <div id="statDone" class="text-xl font-bold text-green-500">-</div>
+                <div class="text-xs text-gray-400 mt-0.5">完成（1小時內）</div>
+              </div>
+              <div class="flex-1 bg-white rounded-lg py-2 border border-gray-100">
+                <div id="statFailed" class="text-xl font-bold text-red-400">-</div>
+                <div class="text-xs text-gray-400 mt-0.5">失敗（1小時內）</div>
+              </div>
+            </div>
+          </div>
           <div id="batchResult" class="mt-4"></div>
         </div>
 
@@ -1157,6 +1184,8 @@ async function runBatchPatrol() {
           await savePatrolConfigSilent();
           updateBatchNextKw();
           box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個留言任務，Extension 會陸續執行</div>`;
+          // 顯示進度條並開始輪詢
+          startQueueMonitor();
         } else {
           box.innerHTML = `<div class="text-red-400 text-sm py-2">批次建立失敗：${esc(batchData.error)}</div>`;
         }
@@ -1164,6 +1193,63 @@ async function runBatchPatrol() {
       }
     } catch(e) {}
   }, 3000);
+}
+
+// ── 任務進度監控 ──────────────────────────────────────────────────────────────
+
+let _queueTimer = null;
+let _queueStarted = null;
+
+function startQueueMonitor() {
+  const prog = document.getElementById("batchProgress");
+  const stopBtn = document.getElementById("btnStop");
+  prog.classList.remove("hidden");
+  stopBtn.classList.remove("hidden");
+  _queueStarted = Date.now();
+  if (_queueTimer) clearInterval(_queueTimer);
+  _queueTimer = setInterval(async () => {
+    try {
+      const res  = await fetch("/api/patrol/queue-status");
+      const data = await res.json();
+      if (!data.success) return;
+      document.getElementById("statPending").textContent = data.pending;
+      document.getElementById("statDone").textContent    = data.done_1h;
+      document.getElementById("statFailed").textContent  = data.failed_1h;
+      const elapsed = Math.floor((Date.now() - _queueStarted) / 1000);
+      const m = Math.floor(elapsed / 60), s = elapsed % 60;
+      document.getElementById("batchTimer").textContent =
+        `已執行 ${m > 0 ? m + "分" : ""}${s}秒`;
+      if (data.pending === 0) {
+        clearInterval(_queueTimer); _queueTimer = null;
+        stopBtn.classList.add("hidden");
+      }
+    } catch(e) {}
+  }, 5000);
+  // 立即刷新一次
+  (async () => {
+    try {
+      const res  = await fetch("/api/patrol/queue-status");
+      const data = await res.json();
+      if (!data.success) return;
+      document.getElementById("statPending").textContent = data.pending;
+      document.getElementById("statDone").textContent    = data.done_1h;
+      document.getElementById("statFailed").textContent  = data.failed_1h;
+    } catch(e) {}
+  })();
+}
+
+async function stopBatch() {
+  if (!confirm("確定要停止所有排隊中的留言任務？")) return;
+  const res  = await fetch("/api/patrol/stop", { method: "POST" });
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById("batchResult").innerHTML =
+      `<div class="text-orange-500 text-sm py-2">⏹ 已取消 ${data.cancelled} 個任務</div>`;
+    if (_queueTimer) { clearInterval(_queueTimer); _queueTimer = null; }
+    document.getElementById("btnStop").classList.add("hidden");
+    // 刷新進度
+    startQueueMonitor();
+  }
 }
 
 // ── 推廣模式 ─────────────────────────────────────────────────────────────────
