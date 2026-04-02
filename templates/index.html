@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5888 小編助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    .tab-btn.active { border-bottom-color: #6366f1; color: #6366f1; }
+    .patrol-tab-btn.active { border-bottom-color: #6366f1; color: #6366f1; }
+    .hidden { display: none !important; }
+    .line-clamp-2 { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- ── 登入頁面 ─────────────────────────────────────────────────────────────── -->
+<div id="loginPage" class="min-h-screen flex items-center justify-center hidden">
+  <div class="bg-white rounded-2xl shadow-xl p-10 w-full max-w-sm text-center">
+    <div class="text-4xl mb-3">✍️</div>
+    <h1 class="text-2xl font-bold text-gray-800 mb-1">5888 小編助手</h1>
+    <p class="text-sm text-gray-400 mb-8">Threads 自動化工具</p>
+    <div id="googleSignInBtn" class="flex justify-center"></div>
+    <p id="loginError" class="text-xs text-red-400 mt-4 hidden"></p>
+  </div>
+</div>
+
+<!-- ── 主介面 ──────────────────────────────────────────────────────────────── -->
+<div id="mainApp" class="hidden">
+
+  <!-- 頂部導覽列 -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+    <div class="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-lg font-bold text-indigo-600">✍️ 5888小編助手</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 bg-indigo-50 rounded-xl px-3 py-1.5">
+          <span class="text-xs text-indigo-500 font-medium">點數</span>
+          <span id="headerCredits" class="text-sm font-bold text-indigo-700">-</span>
+        </div>
+        <span id="headerEmail" class="text-xs text-gray-400 hidden md:block"></span>
+        <button onclick="doLogout()" class="text-xs text-gray-400 hover:text-gray-600">登出</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 頁籤 -->
+  <div class="bg-white border-b border-gray-200">
+    <div class="max-w-5xl mx-auto px-4 flex gap-1">
+      <button onclick="switchTab('trending')"  class="tab-btn active px-5 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔥 熱門發文</button>
+      <button onclick="switchTab('patrol')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🔍 海巡留言</button>
+      <button onclick="switchTab('editor')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">💬 小編回覆</button>
+      <button onclick="switchTab('schedule')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📅 排程發文</button>
+      <button onclick="switchTab('accounts')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">👤 帳號設定</button>
+      <button onclick="switchTab('referral')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🎁 推薦獎勵</button>
+      <button onclick="switchTab('log')"       class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📋 使用記錄</button>
+      <button id="adminTabBtn" onclick="switchTab('admin')" class="tab-btn hidden px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🔑 管理員</button>
+    </div>
+  </div>
+
+  <main class="max-w-5xl mx-auto px-4 py-6 space-y-5">
+
+    <!-- ── 🔥 熱門發文 ─────────────────────────────────────────────────────── -->
+    <div id="tabTrending">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h2 class="font-semibold text-gray-700 mb-1">🔥 熱門話題一鍵改寫發文</h2>
+        <p class="text-sm text-gray-400 mb-4">搜尋當天熱門新聞，AI 依你的人設改寫，一鍵發布（扣 1 點）</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">來源</label>
+            <select id="trendSource" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="google_news">Google 新聞</option>
+              <option value="yahoo_news">Yahoo 新聞</option>
+              <option value="ptt">PTT 熱門</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">時間範圍</label>
+            <select id="trendHours" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="24">今天（24小時）</option>
+              <option value="72">最近 3 天</option>
+              <option value="168">最近 7 天</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">發文帳號</label>
+            <select id="trendAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          </div>
+          <div class="flex items-end">
+            <button onclick="fetchTrending()" id="btnFetchTrend"
+              class="w-full px-4 py-2 rounded-xl text-sm font-medium bg-rose-500 hover:bg-rose-600 text-white transition">
+              🔍 搜尋熱門
+            </button>
+          </div>
+        </div>
+        <div id="trendResults">
+          <div class="text-sm text-gray-400 text-center py-8">點「搜尋熱門」顯示最新話題</div>
+        </div>
+      </div>
+      <!-- 改寫預覽 -->
+      <div id="trendPreviewCard" class="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 shadow-sm hidden">
+        <h3 class="font-semibold text-gray-700 mb-1">AI 改寫預覽</h3>
+        <p id="trendPreviewSource" class="text-xs text-gray-400 mb-3"></p>
+        <textarea id="trendPreviewText" rows="5"
+          class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none bg-white"></textarea>
+        <div class="flex items-center gap-2 mt-3 flex-wrap">
+          <button onclick="postTrendingText()" id="btnPostTrend"
+            class="px-5 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+            ✈️ 發布到 Threads（扣 1 點）
+          </button>
+          <button onclick="document.getElementById('trendPreviewCard').classList.add('hidden')"
+            class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition">取消</button>
+          <span id="trendPostResult" class="text-sm self-center"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 🔍 海巡留言 ─────────────────────────────────────────────────────── -->
+    <div id="tabPatrol" class="hidden space-y-4">
+
+      <!-- 子頁籤 -->
+      <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+        <div class="border-b border-gray-100 flex">
+          <button onclick="switchPatrolTab('quick')" id="ptab_quick"
+            class="patrol-tab-btn active flex-1 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔍 快速海巡</button>
+          <button onclick="switchPatrolTab('batch')" id="ptab_batch"
+            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🤖 自動批次</button>
+          <button onclick="switchPatrolTab('promo')" id="ptab_promo"
+            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📢 推廣模式</button>
+          <button onclick="switchPatrolTab('config')" id="ptab_config"
+            class="patrol-tab-btn flex-1 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">⚙️ 海巡設定</button>
+        </div>
+
+        <!-- 快速海巡 -->
+        <div id="ptabQuick" class="p-5">
+          <p class="text-sm text-gray-400 mb-4">搜尋關鍵字 → 找到相關貼文 → AI 生成留言 → 透過 Extension 執行（扣 1 點/則）</p>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
+            ⚠️ 需要安裝 Chrome Extension，Extension 會在你的瀏覽器中操作 Threads
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">搜尋關鍵字</label>
+              <input id="patrolKeyword" type="text" placeholder="例：電子鎖 花蓮"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+              <select id="patrolAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+            <div class="flex items-end">
+              <button onclick="runPatrol()" id="btnPatrol"
+                class="w-full px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+                🚀 開始海巡
+              </button>
+            </div>
+          </div>
+          <div id="patrolResults">
+            <div class="text-sm text-gray-400 text-center py-8">輸入關鍵字後點「開始海巡」</div>
+          </div>
+        </div>
+
+        <!-- 自動批次 -->
+        <div id="ptabBatch" class="p-5 hidden">
+          <p class="text-sm text-gray-400 mb-4">從循環關鍵字列表取一組搜尋 → 對所有貼文自動套用詞句庫留言（不需 AI，快速批次）</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+              <select id="batchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">留言模式</label>
+              <select id="batchMode" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <option value="phrase">詞句庫輪換（快速）</option>
+                <option value="ai">AI 生成（較慢，需 Gemini Key）</option>
+              </select>
+            </div>
+          </div>
+          <div id="batchNextKw" class="text-xs text-gray-500 mb-4 bg-gray-50 rounded-lg px-3 py-2">下一組關鍵字：讀取中…</div>
+          <button onclick="runBatchPatrol()" id="btnBatch"
+            class="px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+            🤖 執行批次海巡
+          </button>
+          <div id="batchResult" class="mt-4"></div>
+        </div>
+
+        <!-- 推廣模式 -->
+        <div id="ptabPromo" class="p-5 hidden">
+          <p class="text-sm text-gray-400 mb-4">輸入產品描述 → AI 自動生成關鍵字 → 搜尋貼文 → 對每篇貼文 AI 生成帶有產品連結的推廣留言</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+              <select id="promoAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">目標客群（選填）</label>
+              <input id="promoAudience" type="text" placeholder="例：租屋族、新婚夫妻"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-xs text-gray-500 mb-1 block">產品描述</label>
+              <textarea id="promoDesc" rows="3" placeholder="例：花蓮電子鎖安裝，提供感應卡、指紋、密碼三合一鎖，含到府安裝服務"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+            </div>
+            <div class="md:col-span-2">
+              <label class="text-xs text-gray-500 mb-1 block">產品連結（選填，會帶入留言）</label>
+              <input id="promoUrl" type="text" placeholder="https://shopee.tw/..."
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+          </div>
+          <div class="flex gap-3 items-center flex-wrap">
+            <button onclick="genPromoKeywords()" id="btnGenKw"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-500 hover:bg-indigo-600 text-white transition">
+              ✨ AI 生成關鍵字
+            </button>
+            <div id="promoKwList" class="flex flex-wrap gap-2"></div>
+          </div>
+          <div id="promoKwSelected" class="mt-2 text-xs text-gray-500"></div>
+          <button onclick="runPromoPatrol()" id="btnPromo" class="mt-4 px-6 py-2.5 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition hidden">
+            🚀 開始推廣海巡
+          </button>
+          <div id="promoResult" class="mt-4"></div>
+        </div>
+
+        <!-- 海巡設定 -->
+        <div id="ptabConfig" class="p-5 hidden">
+          <div class="space-y-6">
+
+            <!-- 循環關鍵字 -->
+            <div>
+              <h3 class="font-medium text-gray-700 mb-2">🔄 循環關鍵字列表</h3>
+              <p class="text-xs text-gray-400 mb-3">每次執行自動批次，會依序取下一組關鍵字搜尋。執行過後自動往下一組輪替。</p>
+              <div class="flex gap-2 mb-3">
+                <input id="newKwInput" type="text" placeholder="輸入關鍵字，Enter 加入"
+                  onkeydown="if(event.key==='Enter')addKeyword()"
+                  class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                <button onclick="addKeyword()" class="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">加入</button>
+              </div>
+              <div id="kwList" class="flex flex-wrap gap-2 min-h-[2rem]">
+                <span class="text-xs text-gray-400">（讀取中）</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">目前進度：第 <span id="kwIndexDisplay">-</span> 組</p>
+            </div>
+
+            <!-- 詞句庫 -->
+            <div>
+              <h3 class="font-medium text-gray-700 mb-2">💬 詞句庫</h3>
+              <p class="text-xs text-gray-400 mb-3">批次留言時依序輪換使用，避免重複。目前共 <span id="phraseCount">-</span> 句。</p>
+              <div id="phraseListArea" class="bg-gray-50 rounded-xl p-3 mb-3 max-h-48 overflow-y-auto text-xs text-gray-600 space-y-1">
+                <span class="text-gray-400">讀取中…</span>
+              </div>
+              <textarea id="phraseEditArea" rows="6" placeholder="每行一句，直接編輯後儲存"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono hidden resize-none"></textarea>
+              <div class="flex gap-2 mt-2">
+                <button onclick="togglePhraseEdit()" id="btnPhraseEdit"
+                  class="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition">✏️ 編輯詞句庫</button>
+                <button onclick="savePhrases()" id="btnPhrasesSave" class="hidden px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">💾 儲存</button>
+                <button onclick="resetPhrases()" id="btnPhrasesReset" class="hidden px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-500 transition">↩ 還原預設</button>
+              </div>
+              <p class="text-xs text-gray-400 mt-2">下一句輪到：第 <span id="phIndexDisplay">-</span> 句</p>
+            </div>
+
+            <!-- 自動海巡排程 -->
+            <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="font-medium text-gray-700">🤖 自動海巡排程</h3>
+                  <p class="text-xs text-gray-400 mt-0.5">開啟後，Extension 每次輪詢時自動判斷是否到時間，到了就搜尋+留言，完全不需要手動操作</p>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer ml-4">
+                  <input type="checkbox" id="cfgAutoEnabled" class="sr-only peer" onchange="toggleAutoPatrol(this)">
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+              <div id="autoPatrolSettings" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+                  <select id="cfgAutoAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"></select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">留言模式</label>
+                  <select id="cfgAutoMode" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="phrase">詞句庫輪換</option>
+                    <option value="ai">AI 生成</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">每隔幾分鐘執行一次</label>
+                  <select id="cfgAutoInterval" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <option value="30">30 分鐘</option>
+                    <option value="60">1 小時</option>
+                    <option value="120">2 小時</option>
+                    <option value="180">3 小時</option>
+                    <option value="360">6 小時</option>
+                  </select>
+                </div>
+              </div>
+              <p class="text-xs text-gray-400 mt-3">上次執行：<span id="autoLastRun">—</span></p>
+            </div>
+
+            <!-- 批次控制 -->
+            <div>
+              <h3 class="font-medium text-gray-700 mb-2">⚙️ 批次控制</h3>
+              <div class="grid grid-cols-3 gap-4">
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">最多留言數</label>
+                  <input id="cfgMaxComments" type="number" min="1" max="50" value="20"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">每 N 則暫停</label>
+                  <input id="cfgPauseAfter" type="number" min="1" max="30" value="10"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+                <div>
+                  <label class="text-xs text-gray-500 mb-1 block">暫停幾分鐘</label>
+                  <input id="cfgPauseMin" type="number" min="1" max="120" value="30"
+                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                </div>
+              </div>
+              <button onclick="savePatrolConfig()" class="mt-3 px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+                💾 儲存設定
+              </button>
+              <span id="patrolConfigSaved" class="text-xs text-green-500 ml-3 hidden">已儲存</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 💬 小編回覆 ─────────────────────────────────────────────────────── -->
+    <div id="tabEditor" class="hidden space-y-4">
+
+      <!-- 操作列 -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <div class="flex flex-wrap items-end gap-3">
+          <div class="flex-1 min-w-36">
+            <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+            <select id="editorAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          </div>
+          <div class="flex-1 min-w-36">
+            <label class="text-xs text-gray-500 mb-1 block">掃描幾篇貼文</label>
+            <select id="editorMaxPosts" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="3">3 篇</option>
+              <option value="5" selected>5 篇</option>
+              <option value="10">10 篇</option>
+            </select>
+          </div>
+          <button onclick="startInboxScan()" id="btnScan"
+            class="px-5 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition whitespace-nowrap">
+            📡 掃描我的留言
+          </button>
+          <span id="scanStatus" class="text-xs text-gray-400 self-center"></span>
+        </div>
+        <p class="text-xs text-gray-400 mt-3">Extension 會自動掃描你最近 N 篇貼文的留言，掃完後顯示在下方，帳號 handle 需在帳號設定中填寫</p>
+      </div>
+
+      <!-- 批次操作列 -->
+      <div id="inboxActions" class="hidden bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 flex flex-wrap items-center gap-3">
+        <label class="flex items-center gap-2 text-sm text-indigo-700 cursor-pointer select-none">
+          <input type="checkbox" id="checkAll" onchange="toggleCheckAll(this.checked)" class="rounded">
+          全選
+        </label>
+        <span id="checkedCount" class="text-sm text-indigo-600 font-medium">已選 0 則</span>
+        <button onclick="genAllReplies()" id="btnGenAll"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          ✨ AI 生成全部回覆
+        </button>
+        <button onclick="sendChecked()" id="btnSendChecked"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition">
+          💬 發送已勾選（扣點）
+        </button>
+        <button onclick="clearInbox()" class="ml-auto text-xs text-gray-400 hover:text-red-400 transition">清除收件匣</button>
+      </div>
+
+      <!-- 收件匣列表 -->
+      <div id="inboxList" class="space-y-3"></div>
+
+      <!-- 空狀態 -->
+      <div id="inboxEmpty" class="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
+        點擊「📡 掃描我的留言」，Extension 會自動抓取你貼文的留言
+      </div>
+    </div>
+
+    <!-- ── 📅 排程發文 ─────────────────────────────────────────────────────── -->
+    <div id="tabSchedule" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold text-gray-700 text-lg">📅 排程發文</h2>
+          <p class="text-sm text-gray-400 mt-0.5">設定好時間，伺服器自動發文（台灣時間），扣 1 點/篇</p>
+        </div>
+        <button onclick="openAddSchedule()"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition">
+          ＋ 新增排程
+        </button>
+      </div>
+      <div id="scheduleList">
+        <div class="text-gray-400 text-sm text-center py-10">讀取中…</div>
+      </div>
+    </div>
+
+    <!-- ── 👤 帳號設定 ─────────────────────────────────────────────────────── -->
+    <div id="tabAccounts" class="hidden space-y-4">
+      <div class="flex items-center justify-between">
+        <h2 class="font-semibold text-gray-700 text-lg">👤 帳號設定</h2>
+        <button onclick="showAddAccount()"
+          class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg font-medium transition">
+          ＋ 新增帳號
+        </button>
+      </div>
+
+      <!-- 新增表單 -->
+      <div id="addAccountForm" class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hidden space-y-3">
+        <h3 class="font-medium text-gray-700">新增 Threads 帳號</h3>
+        <input id="newAccName" type="text" placeholder="帳號名稱（例：彼得大叔）"
+          class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
+        <input id="newAccHandle" type="text" placeholder="Threads @帳號名（例：0xspeter，不含 @，掃描留言必填）"
+          class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
+        <input id="newAccToken" type="password" placeholder="Threads API Token（選填，留空可存但不能發文）"
+          class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
+        <input id="newAccGemini" type="password" placeholder="Gemini API Key（選填，AI 功能使用）"
+          class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
+        <textarea id="newAccPersona" rows="3" placeholder="人設描述（越詳細越好，AI 發文時使用）"
+          class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm resize-none"></textarea>
+        <div class="flex gap-2">
+          <button onclick="saveNewAccount()"
+            class="px-5 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+            儲存
+          </button>
+          <button onclick="hideAddAccount()"
+            class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+            取消
+          </button>
+        </div>
+      </div>
+
+      <div id="accountList">
+        <div class="text-gray-400 text-sm text-center py-10">讀取中…</div>
+      </div>
+    </div>
+
+    <!-- ── 🎁 推薦獎勵 ─────────────────────────────────────────────────────── -->
+    <div id="tabReferral" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h2 class="font-semibold text-gray-700 mb-1">🎁 推薦獎勵</h2>
+        <p class="text-sm text-gray-400 mb-5">每推薦一位朋友成功登入，你獲得 <span class="font-bold text-indigo-600">100 點</span>，朋友也從 100 點起步</p>
+
+        <!-- 推薦連結 -->
+        <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-5">
+          <label class="text-xs text-gray-500 mb-2 block">你的專屬推薦連結</label>
+          <div class="flex gap-2 items-center">
+            <input id="referralLink" type="text" readonly
+              class="flex-1 border border-indigo-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-600 select-all"
+              value="讀取中…">
+            <button onclick="copyReferralLink()" id="btnCopyRef"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition whitespace-nowrap">
+              📋 複製
+            </button>
+          </div>
+          <span id="refCopied" class="text-xs text-green-500 mt-1 hidden block">已複製！</span>
+        </div>
+
+        <!-- 統計 -->
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div class="bg-gray-50 rounded-xl p-4">
+            <div id="refCount" class="text-2xl font-bold text-indigo-600">—</div>
+            <div class="text-xs text-gray-400 mt-1">成功推薦人數</div>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <div id="refEarned" class="text-2xl font-bold text-teal-600">—</div>
+            <div class="text-xs text-gray-400 mt-1">已獲得點數</div>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <div id="refCode" class="text-2xl font-bold text-gray-600 font-mono">—</div>
+            <div class="text-xs text-gray-400 mt-1">推薦碼</div>
+          </div>
+        </div>
+
+        <!-- 說明 -->
+        <div class="mt-5 text-sm text-gray-500 space-y-2">
+          <p>📌 使用方式：</p>
+          <ol class="list-decimal list-inside space-y-1 text-xs text-gray-400 ml-2">
+            <li>複製你的推薦連結，分享給朋友</li>
+            <li>朋友點連結，用 Google 帳號登入</li>
+            <li>系統自動確認並立即發放 100 點給你</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 📋 使用記錄 ─────────────────────────────────────────────────────── -->
+    <div id="tabLog" class="hidden">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-semibold text-gray-700">📋 使用記錄</h2>
+          <button onclick="loadLog()" class="text-xs text-indigo-500 hover:text-indigo-700">重新整理</button>
+        </div>
+        <div id="logList" class="space-y-1.5 max-h-96 overflow-y-auto text-sm font-mono">
+          <div class="text-gray-400 text-xs text-center py-4">讀取中…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 🔑 管理員 ──────────────────────────────────────────────────────── -->
+    <div id="tabAdmin" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h2 class="font-semibold text-gray-700 mb-4">🔑 管理員後台</h2>
+        <div class="flex gap-2 mb-4">
+          <input id="adminEmail" type="email" placeholder="用戶 Email"
+            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <input id="adminAmount" type="number" placeholder="加點數" min="1"
+            class="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <button onclick="adminAddCredits()"
+            class="px-4 py-2 rounded-lg text-sm font-medium bg-green-500 hover:bg-green-600 text-white transition">
+            加點數
+          </button>
+        </div>
+        <div id="adminUserList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+        <button onclick="loadAdminUsers()" class="mt-3 text-xs text-indigo-500 hover:text-indigo-700">重新整理</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── 排程新增 Modal ──────────────────────────────────────────────────────── -->
+<div id="scheduleModal" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-bold text-gray-700">新增排程發文</h3>
+      <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">排程名稱</label>
+      <input id="schedName" type="text" placeholder="例：每日早安文"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">發文帳號</label>
+      <select id="schedAccSelect" class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm"></select>
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">發文時間（台灣時間，可填多個，逗號分隔）</label>
+      <input id="schedTimes" type="text" placeholder="例：08:00, 12:00, 20:00"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+    </div>
+    <div>
+      <label class="text-xs text-gray-500 mb-1 block">內容模式</label>
+      <select id="schedMode" onchange="toggleScheduleMode()"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm">
+        <option value="ai">AI 自動生成</option>
+        <option value="fixed">固定文字輪替</option>
+      </select>
+    </div>
+    <div id="schedAiSection">
+      <label class="text-xs text-gray-500 mb-1 block">AI 發文主題 / 指示</label>
+      <textarea id="schedAiPrompt" rows="2" placeholder="例：分享一件今天發生的趣事，或生活感悟"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none"></textarea>
+    </div>
+    <div id="schedFixedSection" class="hidden">
+      <label class="text-xs text-gray-500 mb-1 block">固定貼文內容（多篇請用「---」分隔，輪替發文）</label>
+      <textarea id="schedFixedTexts" rows="4" placeholder="第一篇貼文內容&#10;---&#10;第二篇貼文內容"
+        class="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm resize-none font-mono text-xs"></textarea>
+    </div>
+    <div class="flex gap-2 pt-2">
+      <button onclick="saveSchedule()"
+        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-xl text-sm transition">
+        儲存排程
+      </button>
+      <button onclick="closeScheduleModal()"
+        class="px-4 py-2 rounded-xl text-sm text-gray-500 border border-gray-200 hover:bg-gray-50">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 全域狀態 ──────────────────────────────────────────────────────────────────
+let currentUser  = null;
+let userAccounts = [];
+let _trendItems  = [];
+
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+// ── 啟動 ─────────────────────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", async () => {
+  await checkAuth();
+});
+
+async function checkAuth() {
+  try {
+    const res  = await fetch("/auth/status");
+    const data = await res.json();
+    if (data.logged_in) {
+      currentUser = data;
+      showMainApp();
+    } else {
+      showLoginPage();
+    }
+  } catch(e) {
+    showLoginPage();
+  }
+}
+
+function showLoginPage() {
+  document.getElementById("loginPage").classList.remove("hidden");
+  document.getElementById("mainApp").classList.add("hidden");
+  initGoogleLogin();
+}
+
+function showMainApp() {
+  document.getElementById("loginPage").classList.add("hidden");
+  document.getElementById("mainApp").classList.remove("hidden");
+  document.getElementById("headerCredits").textContent = currentUser.credits;
+  document.getElementById("headerEmail").textContent   = currentUser.email;
+  if (currentUser.is_admin) document.getElementById("adminTabBtn").classList.remove("hidden");
+  loadAccounts();
+  switchTab("trending");
+}
+
+// ── Google 登入 ───────────────────────────────────────────────────────────────
+function initGoogleLogin() {
+  const clientId = "{{ google_client_id }}";
+  if (!clientId) {
+    document.getElementById("loginError").textContent = "⚠️ 尚未設定 Google Client ID";
+    document.getElementById("loginError").classList.remove("hidden");
+    return;
+  }
+  google.accounts.id.initialize({ client_id: clientId, callback: handleGoogleCredential });
+  google.accounts.id.renderButton(document.getElementById("googleSignInBtn"),
+    { theme: "outline", size: "large", locale: "zh-TW" });
+}
+
+async function handleGoogleCredential(response) {
+  const res  = await fetch("/auth/google", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      credential: response.credential,
+      ref_code: new URLSearchParams(location.search).get("ref") || "",
+    }),
+  });
+  const data = await res.json();
+  if (data.success) {
+    currentUser = data.user;
+    showMainApp();
+  } else {
+    document.getElementById("loginError").textContent = "登入失敗：" + data.error;
+    document.getElementById("loginError").classList.remove("hidden");
+  }
+}
+
+async function doLogout() {
+  await fetch("/auth/logout", { method: "POST" });
+  currentUser = null;
+  showLoginPage();
+}
+
+// ── 頁籤切換 ─────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ["trending","patrol","editor","schedule","accounts","referral","log","admin"].forEach(t => {
+    document.getElementById("tabBtn_" + t)?.classList.remove("active");
+    document.getElementById("tab" + t.charAt(0).toUpperCase() + t.slice(1))
+      ?.classList.toggle("hidden", t !== tab);
+  });
+  document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+    btn.classList.toggle("active", btn.getAttribute("onclick")?.includes(`'${tab}'`));
+  });
+
+  if (tab === "accounts") loadAccountList();
+  if (tab === "schedule") loadSchedules();
+  if (tab === "log")      loadLog();
+  if (tab === "admin")    loadAdminUsers();
+  if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
+  if (tab === "referral") loadReferral();
+  if (tab === "patrol")   loadPatrolConfig();
+  if (tab === "editor")   loadInbox();
+}
+
+// ── 帳號 ─────────────────────────────────────────────────────────────────────
+async function loadAccounts() {
+  const res  = await fetch("/api/accounts");
+  const data = await res.json();
+  userAccounts = data.accounts || [];
+  fillAccountSelects();
+  loadAccountList();
+}
+
+function fillAccountSelects() {
+  const opts = userAccounts.length
+    ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
+    : '<option value="">（尚未設定帳號）</option>';
+  ["trendAccount","patrolAccount","batchAccount","promoAccount","editorAccount"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = opts;
+  });
+}
+
+function loadAccountList() {
+  const el = document.getElementById("accountList");
+  if (!el) return;
+  el.innerHTML = userAccounts.length === 0
+    ? '<div class="text-sm text-gray-400 text-center py-8">尚未設定帳號，點右上角「＋ 新增帳號」</div>'
+    : userAccounts.map(a => `
+      <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center justify-between">
+        <div>
+          <div class="text-sm font-medium text-gray-700">${esc(a.name)}${a.handle ? ` <span class="text-gray-400 font-normal">@${esc(a.handle)}</span>` : ""}</div>
+          ${a.token_preview
+            ? `<div class="text-xs text-gray-400 mt-0.5">Token: ${esc(a.token_preview)}</div>`
+            : `<div class="text-xs text-red-400 mt-0.5">⚠️ 無 API Token，暫不能發文</div>`}
+          ${!a.handle ? `<div class="text-xs text-orange-400 mt-0.5">⚠️ 未填 handle，無法掃描留言</div>` : ""}
+        </div>
+        <button onclick="deleteAccount('${esc(a.id)}')" class="text-xs text-red-400 hover:text-red-600">刪除</button>
+      </div>`
+    ).join("");
+}
+
+function showAddAccount()  { document.getElementById("addAccountForm").classList.remove("hidden"); }
+function hideAddAccount()  { document.getElementById("addAccountForm").classList.add("hidden"); }
+
+async function saveNewAccount() {
+  const name    = document.getElementById("newAccName").value.trim();
+  const handle  = document.getElementById("newAccHandle").value.trim().replace(/^@/, "");
+  const token   = document.getElementById("newAccToken").value.trim();
+  const gemini  = document.getElementById("newAccGemini").value.trim();
+  const persona = document.getElementById("newAccPersona").value.trim();
+  if (!name) { alert("帳號名稱為必填"); return; }
+  const res  = await fetch("/api/accounts", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ name, handle, access_token: token, gemini_key: gemini, persona }),
+  });
+  const data = await res.json();
+  if (data.success) { await loadAccounts(); hideAddAccount(); }
+  else alert("儲存失敗：" + data.error);
+}
+
+async function deleteAccount(id) {
+  if (!confirm("確定刪除？")) return;
+  await fetch(`/api/accounts/${id}`, { method: "DELETE" });
+  await loadAccounts();
+}
+
+// ── 熱門話題 ─────────────────────────────────────────────────────────────────
+async function fetchTrending() {
+  const source = document.getElementById("trendSource").value;
+  const hours  = document.getElementById("trendHours").value;
+  const btn    = document.getElementById("btnFetchTrend");
+  const box    = document.getElementById("trendResults");
+
+  btn.disabled = true; btn.textContent = "搜尋中…";
+  box.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">載入中…</div>';
+
+  try {
+    const res  = await fetch(`/api/trending?source=${source}&hours=${hours}`);
+    const data = await res.json();
+    if (!data.success || !data.items?.length) {
+      box.innerHTML = `<div class="text-sm text-red-400 text-center py-8">${esc(data.error || "沒有找到話題")}</div>`;
+      return;
+    }
+    _trendItems = data.items;
+    box.innerHTML = data.items.map((item, i) => `
+      <div class="flex items-start gap-3 border border-gray-100 rounded-xl px-4 py-3 hover:bg-gray-50 mb-2">
+        <div class="flex-1 min-w-0">
+          <a href="${esc(item.link)}" target="_blank"
+            class="text-sm font-medium text-gray-700 hover:text-indigo-600">${esc(item.title)}</a>
+          <div class="flex gap-3 mt-1 flex-wrap">
+            <span class="text-xs text-gray-400">${esc(item.source)}</span>
+            ${item.time ? `<span class="text-xs text-gray-400">${esc(item.time)}</span>` : ""}
+            ${item.nrec ? `<span class="text-xs text-orange-400">推 ${esc(item.nrec)}</span>` : ""}
+          </div>
+          ${item.summary ? `<p class="text-xs text-gray-400 mt-1 line-clamp-2">${esc(item.summary)}</p>` : ""}
+        </div>
+        <button onclick="rewriteTrending(${i})" data-tidx="${i}"
+          class="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition whitespace-nowrap">
+          AI 改寫
+        </button>
+      </div>`).join("");
+  } catch(e) {
+    box.innerHTML = `<div class="text-sm text-red-400 text-center py-8">搜尋失敗：${esc(e.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = "🔍 搜尋熱門";
+  }
+}
+
+async function rewriteTrending(idx) {
+  const item      = _trendItems[idx];
+  const accountId = document.getElementById("trendAccount").value;
+  if (!accountId) { alert("請先選擇帳號"); return; }
+  const btn = document.querySelector(`[data-tidx="${idx}"]`);
+  btn.textContent = "生成中…"; btn.disabled = true;
+  try {
+    const res  = await fetch("/api/ai/trending-rewrite", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: accountId, title: item.title, summary: item.summary||"", source: item.source }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("trendPreviewSource").textContent = `來源：${item.source} — ${item.title}`;
+      document.getElementById("trendPreviewText").value = data.text;
+      document.getElementById("trendPostResult").textContent = "";
+      const card = document.getElementById("trendPreviewCard");
+      card.classList.remove("hidden");
+      card.scrollIntoView({ behavior: "smooth" });
+    } else { alert("AI 改寫失敗：" + data.error); }
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.textContent = "AI 改寫"; btn.disabled = false; }
+}
+
+async function postTrendingText() {
+  const text      = document.getElementById("trendPreviewText").value.trim();
+  const accountId = document.getElementById("trendAccount").value;
+  if (!text) { alert("內容不能空白"); return; }
+  const btn = document.getElementById("btnPostTrend");
+  const res = document.getElementById("trendPostResult");
+  btn.disabled = true; btn.textContent = "發布中…";
+  try {
+    const r    = await fetch("/api/post", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: accountId, text }),
+    });
+    const data = await r.json();
+    if (data.success) {
+      res.textContent = "✓ 發布成功！"; res.className = "text-sm self-center text-green-500";
+      currentUser.credits--;
+      document.getElementById("headerCredits").textContent = currentUser.credits;
+      setTimeout(() => document.getElementById("trendPreviewCard").classList.add("hidden"), 2000);
+    } else {
+      res.textContent = "失敗：" + (data.error||"未知"); res.className = "text-sm self-center text-red-500";
+    }
+  } catch(e) { res.textContent = "網路錯誤"; res.className = "text-sm self-center text-red-500"; }
+  finally { btn.disabled = false; btn.textContent = "✈️ 發布到 Threads（扣 1 點）"; }
+}
+
+// ── 海巡留言 ─────────────────────────────────────────────────────────────────
+let _patrolAccountId = "";
+let _patrolConfig    = {};
+let _promoKeywords   = [];
+let _promoSelectedKw = "";
+
+function switchPatrolTab(tab) {
+  ["quick","batch","promo","config"].forEach(t => {
+    document.getElementById("ptab_" + t)?.classList.toggle("active", t === tab);
+    document.getElementById("ptab" + t.charAt(0).toUpperCase() + t.slice(1))?.classList.toggle("hidden", t !== tab);
+  });
+  if (tab === "config") loadPatrolConfig();
+  if (tab === "batch")  updateBatchNextKw();
+}
+
+async function loadPatrolConfig() {
+  try {
+    const res  = await fetch("/api/patrol/config");
+    const data = await res.json();
+    if (!data.success) return;
+    _patrolConfig = data.config;
+    renderPatrolConfigUI();
+  } catch(e) {}
+}
+
+function renderPatrolConfigUI() {
+  const cfg = _patrolConfig;
+  // 批次控制
+  const maxC = document.getElementById("cfgMaxComments"); if (maxC) maxC.value = cfg.max_comments ?? 20;
+  const pAfter = document.getElementById("cfgPauseAfter"); if (pAfter) pAfter.value = cfg.pause_after ?? 10;
+  const pMin = document.getElementById("cfgPauseMin"); if (pMin) pMin.value = cfg.pause_minutes ?? 30;
+  // 關鍵字列表
+  renderKwList(cfg.keywords || []);
+  document.getElementById("kwIndexDisplay").textContent = (cfg.kw_index ?? 0) + 1;
+  // 詞句庫
+  const phrases = cfg.phrases || [];
+  document.getElementById("phraseCount").textContent = phrases.length;
+  document.getElementById("phIndexDisplay").textContent = (cfg.ph_index ?? 0) + 1;
+  const phraseArea = document.getElementById("phraseListArea");
+  if (phraseArea) phraseArea.innerHTML = phrases.map((p, i) =>
+    `<div class="${i === cfg.ph_index ? 'font-semibold text-indigo-600' : ''}">${i+1}. ${esc(p)}</div>`
+  ).join("");
+  // 自動海巡
+  const autoChk = document.getElementById("cfgAutoEnabled");
+  if (autoChk) autoChk.checked = !!cfg.auto_enabled;
+  const autoAcc = document.getElementById("cfgAutoAccount");
+  if (autoAcc) {
+    const opts = userAccounts.length
+      ? userAccounts.map(a => `<option value="${esc(a.id)}" ${a.id===cfg.auto_account_id?'selected':''}>${esc(a.name)}</option>`).join("")
+      : '<option value="">（無帳號）</option>';
+    autoAcc.innerHTML = opts;
+  }
+  const autoMode = document.getElementById("cfgAutoMode");
+  if (autoMode) autoMode.value = cfg.auto_mode || "phrase";
+  const autoInt = document.getElementById("cfgAutoInterval");
+  if (autoInt) autoInt.value = String(cfg.auto_interval || 30);
+  const lastRun = document.getElementById("autoLastRun");
+  if (lastRun) lastRun.textContent = cfg.auto_last_run ? cfg.auto_last_run.replace("T", " ").slice(0, 16) : "—";
+  // 更新 batch next kw 顯示
+  updateBatchNextKw();
+}
+
+function toggleAutoPatrol(checkbox) {
+  _patrolConfig.auto_enabled = checkbox.checked ? 1 : 0;
+  savePatrolConfigSilent();
+}
+
+function renderKwList(keywords) {
+  const el = document.getElementById("kwList");
+  if (!el) return;
+  el.innerHTML = keywords.length
+    ? keywords.map((kw, i) => `
+        <span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded-lg">
+          ${esc(kw)}
+          <button onclick="removeKeyword(${i})" class="text-indigo-300 hover:text-red-500 ml-1">✕</button>
+        </span>`).join("")
+    : '<span class="text-xs text-gray-400">（尚未設定關鍵字）</span>';
+}
+
+function updateBatchNextKw() {
+  const kws = _patrolConfig.keywords || [];
+  const idx = _patrolConfig.kw_index ?? 0;
+  const el  = document.getElementById("batchNextKw");
+  if (!el) return;
+  el.textContent = kws.length
+    ? `下一組關鍵字：「${kws[idx % kws.length]}」（第 ${(idx % kws.length) + 1}/${kws.length} 組）`
+    : "⚠️ 尚未設定關鍵字，請先到「海巡設定」新增";
+}
+
+async function addKeyword() {
+  const input = document.getElementById("newKwInput");
+  const kw = input.value.trim();
+  if (!kw) return;
+  const kws = [...(_patrolConfig.keywords || []), kw];
+  _patrolConfig.keywords = kws;
+  input.value = "";
+  renderKwList(kws);
+  await savePatrolConfigSilent();
+}
+
+async function removeKeyword(idx) {
+  const kws = (_patrolConfig.keywords || []).filter((_, i) => i !== idx);
+  _patrolConfig.keywords = kws;
+  renderKwList(kws);
+  await savePatrolConfigSilent();
+}
+
+function togglePhraseEdit() {
+  const area  = document.getElementById("phraseListArea");
+  const edit  = document.getElementById("phraseEditArea");
+  const btn   = document.getElementById("btnPhraseEdit");
+  const save  = document.getElementById("btnPhrasesSave");
+  const reset = document.getElementById("btnPhrasesReset");
+  const isEditing = !edit.classList.contains("hidden");
+  if (isEditing) {
+    area.classList.remove("hidden"); edit.classList.add("hidden");
+    save.classList.add("hidden"); reset.classList.add("hidden");
+    btn.textContent = "✏️ 編輯詞句庫";
+  } else {
+    edit.value = (_patrolConfig.phrases || []).join("\n");
+    area.classList.add("hidden"); edit.classList.remove("hidden");
+    save.classList.remove("hidden"); reset.classList.remove("hidden");
+    btn.textContent = "取消";
+  }
+}
+
+async function savePhrases() {
+  const val = document.getElementById("phraseEditArea").value;
+  const phrases = val.split("\n").map(s => s.trim()).filter(Boolean);
+  _patrolConfig.phrases = phrases;
+  _patrolConfig.ph_index = 0;
+  await savePatrolConfigSilent();
+  togglePhraseEdit();
+  renderPatrolConfigUI();
+}
+
+async function resetPhrases() {
+  if (!confirm("確定還原成預設詞句庫嗎？")) return;
+  _patrolConfig.phrases = null; // server will use DEFAULT_PHRASES
+  _patrolConfig.ph_index = 0;
+  await savePatrolConfigSilent();
+  await loadPatrolConfig();
+  togglePhraseEdit();
+}
+
+async function savePatrolConfig() {
+  const max_comments    = parseInt(document.getElementById("cfgMaxComments").value) || 20;
+  const pause_after     = parseInt(document.getElementById("cfgPauseAfter").value) || 10;
+  const pause_minutes   = parseInt(document.getElementById("cfgPauseMin").value) || 30;
+  const auto_account_id = document.getElementById("cfgAutoAccount")?.value || "";
+  const auto_mode       = document.getElementById("cfgAutoMode")?.value || "phrase";
+  const auto_interval   = parseInt(document.getElementById("cfgAutoInterval")?.value) || 30;
+  _patrolConfig = { ..._patrolConfig, max_comments, pause_after, pause_minutes,
+                    auto_account_id, auto_mode, auto_interval };
+  await savePatrolConfigSilent();
+  const el = document.getElementById("patrolConfigSaved");
+  el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+}
+
+async function savePatrolConfigSilent() {
+  await fetch("/api/patrol/config", {
+    method: "PUT", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(_patrolConfig),
+  });
+}
+
+// ── 快速海巡 ─────────────────────────────────────────────────────────────────
+
+async function runPatrol() {
+  const keyword   = document.getElementById("patrolKeyword").value.trim();
+  const accountId = document.getElementById("patrolAccount").value;
+  if (!keyword)   { alert("請輸入搜尋關鍵字"); return; }
+  if (!accountId) { alert("請選擇帳號"); return; }
+  _patrolAccountId = accountId;
+
+  const box = document.getElementById("patrolResults");
+  box.innerHTML = '<div class="text-sm text-indigo-500 text-center py-8">⏳ 搜尋任務已發送，等待 Extension 執行（最多 60 秒）…</div>';
+
+  const r    = await fetch("/api/patrol/search", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ account_id: accountId, keyword }),
+  });
+  const data = await r.json();
+  if (!data.success) { box.innerHTML = `<div class="text-red-400 text-sm text-center py-8">${esc(data.error)}</div>`; return; }
+
+  const taskId = data.task_id;
+  let waited = 0;
+  const timer = setInterval(async () => {
+    waited += 3;
+    if (waited > 60) {
+      clearInterval(timer);
+      box.innerHTML = '<div class="text-red-400 text-sm text-center py-8">超時，請確認 Extension 已安裝且 Threads 分頁有開著</div>';
+      return;
+    }
+    try {
+      const res  = await fetch(`/api/patrol/result/${taskId}`);
+      const info = await res.json();
+      if (info.status === "done" || info.status === "failed") {
+        clearInterval(timer);
+        renderPatrolResults(info.posts || []);
+      } else {
+        box.innerHTML = `<div class="text-sm text-indigo-500 text-center py-8">⏳ 搜尋中…（${waited}s）</div>`;
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+function renderPatrolResults(posts) {
+  const box = document.getElementById("patrolResults");
+  if (!posts.length) {
+    box.innerHTML = '<div class="text-sm text-gray-400 text-center py-8">沒有找到相關貼文</div>';
+    return;
+  }
+  box.innerHTML = posts.map((p, i) => `
+    <div class="border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50" data-pidx="${i}">
+      <p class="text-sm text-gray-700 mb-2 line-clamp-2">${esc(p.text)}</p>
+      <a href="${esc(p.link)}" target="_blank" class="text-xs text-indigo-400 hover:underline mb-3 block truncate">${esc(p.link)}</a>
+      <div class="flex gap-2 flex-wrap items-start">
+        <button onclick="genPatrolComment(${i})" data-pgen="${i}"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium bg-teal-50 hover:bg-teal-100 text-teal-600 transition">
+          ✨ AI 生成留言
+        </button>
+        <div class="flex-1 min-w-0">
+          <textarea id="patrolComment_${i}" rows="2" placeholder="留言內容（AI 生成後可修改）"
+            class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs resize-none"></textarea>
+          <button onclick="sendPatrolComment(${i}, '${esc(p.link)}')"
+            class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+            💬 送出留言（扣 1 點）
+          </button>
+          <span id="patrolCommentResult_${i}" class="text-xs ml-2"></span>
+        </div>
+      </div>
+    </div>`).join("");
+  window._patrolPosts = posts;
+}
+
+async function genPatrolComment(idx) {
+  const btn = document.querySelector(`[data-pgen="${idx}"]`);
+  btn.textContent = "生成中…"; btn.disabled = true;
+  try {
+    const post = window._patrolPosts[idx];
+    const res  = await fetch("/api/ai/patrol-comment", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: _patrolAccountId, post_text: post.text }),
+    });
+    const data = await res.json();
+    if (data.success) document.getElementById(`patrolComment_${idx}`).value = data.comment;
+    else alert("AI 生成失敗：" + data.error);
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.textContent = "✨ AI 生成留言"; btn.disabled = false; }
+}
+
+async function sendPatrolComment(idx, postUrl) {
+  const comment = document.getElementById(`patrolComment_${idx}`).value.trim();
+  const resEl   = document.getElementById(`patrolCommentResult_${idx}`);
+  if (!comment) { alert("請先輸入或生成留言內容"); return; }
+  resEl.textContent = "發送中…"; resEl.className = "text-xs ml-2 text-gray-400";
+  try {
+    const res  = await fetch("/api/patrol/comment", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: _patrolAccountId, post_url: postUrl, comment }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resEl.textContent = "✓ 任務已發送給 Extension"; resEl.className = "text-xs ml-2 text-green-500";
+    } else {
+      resEl.textContent = "失敗：" + data.error; resEl.className = "text-xs ml-2 text-red-500";
+    }
+  } catch(e) { resEl.textContent = "網路錯誤"; resEl.className = "text-xs ml-2 text-red-500"; }
+}
+
+// ── 自動批次海巡 ─────────────────────────────────────────────────────────────
+
+async function runBatchPatrol() {
+  const accountId = document.getElementById("batchAccount").value;
+  const mode      = document.getElementById("batchMode").value;
+  const kws = _patrolConfig.keywords || [];
+  if (!accountId) { alert("請選擇帳號"); return; }
+  if (!kws.length) { alert("請先到「海巡設定」新增關鍵字"); return; }
+
+  const idx     = _patrolConfig.kw_index ?? 0;
+  const keyword = kws[idx % kws.length];
+  const btn     = document.getElementById("btnBatch");
+  const box     = document.getElementById("batchResult");
+  btn.disabled  = true; btn.textContent = "搜尋中…";
+  box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 正在搜尋「${esc(keyword)}」，等待 Extension…</div>`;
+
+  // 1. 發搜尋任務
+  const r = await fetch("/api/patrol/search", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ account_id: accountId, keyword }),
+  });
+  const d = await r.json();
+  if (!d.success) { box.innerHTML = `<div class="text-red-400 text-sm py-4">${esc(d.error)}</div>`; btn.disabled=false; btn.textContent="🤖 執行批次海巡"; return; }
+
+  // 2. 輪詢結果
+  const taskId = d.task_id;
+  let waited = 0;
+  const timer = setInterval(async () => {
+    waited += 3;
+    if (waited > 90) {
+      clearInterval(timer);
+      box.innerHTML = '<div class="text-red-400 text-sm py-4">超時，請確認 Extension 有在運作</div>';
+      btn.disabled=false; btn.textContent="🤖 執行批次海巡";
+      return;
+    }
+    box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋中…（${waited}s）</div>`;
+    try {
+      const res  = await fetch(`/api/patrol/result/${taskId}`);
+      const info = await res.json();
+      if (info.status === "done" || info.status === "failed") {
+        clearInterval(timer);
+        const posts = info.posts || [];
+        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🤖 執行批次海巡"; return; }
+        // 3. 批次留言
+        box.innerHTML = `<div class="text-sm text-indigo-500 py-2">找到 ${posts.length} 篇，正在建立留言任務…</div>`;
+        const batchRes = await fetch("/api/patrol/batch-comment", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ account_id: accountId, posts, mode }),
+        });
+        const batchData = await batchRes.json();
+        if (batchData.success) {
+          // 更新 kw_index
+          _patrolConfig.kw_index = ((idx + 1) % kws.length);
+          await savePatrolConfigSilent();
+          updateBatchNextKw();
+          box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個留言任務，Extension 會陸續執行</div>`;
+        } else {
+          box.innerHTML = `<div class="text-red-400 text-sm py-2">批次建立失敗：${esc(batchData.error)}</div>`;
+        }
+        btn.disabled=false; btn.textContent="🤖 執行批次海巡";
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+// ── 推廣模式 ─────────────────────────────────────────────────────────────────
+
+async function genPromoKeywords() {
+  const accountId = document.getElementById("promoAccount").value;
+  const desc      = document.getElementById("promoDesc").value.trim();
+  const audience  = document.getElementById("promoAudience").value.trim();
+  if (!accountId) { alert("請選擇帳號"); return; }
+  if (!desc)      { alert("請輸入產品描述"); return; }
+  const btn = document.getElementById("btnGenKw");
+  btn.disabled = true; btn.textContent = "生成中…";
+  try {
+    const res  = await fetch("/api/ai/patrol-keywords", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: accountId, product_desc: desc, target_audience: audience }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      _promoKeywords = data.keywords;
+      _promoSelectedKw = _promoKeywords[0] || "";
+      document.getElementById("promoKwList").innerHTML = _promoKeywords.map((kw, i) =>
+        `<button onclick="selectPromoKw(${i}, this)" data-idx="${i}"
+          class="px-3 py-1 rounded-lg text-xs font-medium border transition ${i===0 ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}">${esc(kw)}</button>`
+      ).join("");
+      document.getElementById("promoKwSelected").textContent = `已選：「${_promoSelectedKw}」`;
+      document.getElementById("btnPromo").classList.remove("hidden");
+    } else alert("AI 生成失敗：" + data.error);
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.disabled=false; btn.textContent="✨ AI 生成關鍵字"; }
+}
+
+function selectPromoKw(idx, btnEl) {
+  _promoSelectedKw = _promoKeywords[idx];
+  document.querySelectorAll("#promoKwList button").forEach((b, i) => {
+    b.className = `px-3 py-1 rounded-lg text-xs font-medium border transition ${i===idx ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`;
+  });
+  document.getElementById("promoKwSelected").textContent = `已選：「${_promoSelectedKw}」`;
+}
+
+async function runPromoPatrol() {
+  const accountId = document.getElementById("promoAccount").value;
+  const desc      = document.getElementById("promoDesc").value.trim();
+  const url       = document.getElementById("promoUrl").value.trim();
+  if (!accountId || !_promoSelectedKw) { alert("請選擇帳號並選定關鍵字"); return; }
+  const btn = document.getElementById("btnPromo");
+  const box = document.getElementById("promoResult");
+  btn.disabled = true; btn.textContent = "搜尋中…";
+  box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋「${esc(_promoSelectedKw)}」，等待 Extension…</div>`;
+
+  const r = await fetch("/api/patrol/search", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ account_id: accountId, keyword: _promoSelectedKw }),
+  });
+  const d = await r.json();
+  if (!d.success) { box.innerHTML = `<div class="text-red-400 text-sm py-4">${esc(d.error)}</div>`; btn.disabled=false; btn.textContent="🚀 開始推廣海巡"; return; }
+
+  const taskId = d.task_id;
+  let waited = 0;
+  const timer = setInterval(async () => {
+    waited += 3;
+    if (waited > 90) {
+      clearInterval(timer);
+      box.innerHTML = '<div class="text-red-400 text-sm py-4">超時，請確認 Extension 有在運作</div>';
+      btn.disabled=false; btn.textContent="🚀 開始推廣海巡";
+      return;
+    }
+    box.innerHTML = `<div class="text-sm text-indigo-500 py-4">⏳ 搜尋中…（${waited}s）</div>`;
+    try {
+      const res  = await fetch(`/api/patrol/result/${taskId}`);
+      const info = await res.json();
+      if (info.status === "done" || info.status === "failed") {
+        clearInterval(timer);
+        const posts = info.posts || [];
+        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🚀 開始推廣海巡"; return; }
+        box.innerHTML = `<div class="text-sm text-indigo-500 py-2">找到 ${posts.length} 篇，AI 正在生成推廣留言…（稍慢）</div>`;
+        const batchRes = await fetch("/api/patrol/batch-comment", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ account_id: accountId, posts, mode: "promo", product_desc: desc, product_url: url }),
+        });
+        const batchData = await batchRes.json();
+        if (batchData.success) {
+          box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個推廣留言任務，Extension 會陸續執行</div>`;
+        } else {
+          box.innerHTML = `<div class="text-red-400 text-sm py-2">失敗：${esc(batchData.error)}</div>`;
+        }
+        btn.disabled=false; btn.textContent="🚀 開始推廣海巡";
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+// ── 推薦獎勵 ─────────────────────────────────────────────────────────────────
+async function loadReferral() {
+  try {
+    const res  = await fetch("/api/referral");
+    const data = await res.json();
+    if (!data.success) return;
+    document.getElementById("referralLink").value  = data.link;
+    document.getElementById("refCount").textContent  = data.count;
+    document.getElementById("refEarned").textContent = data.earned + " 點";
+    document.getElementById("refCode").textContent   = data.code;
+  } catch(e) {}
+}
+
+async function copyReferralLink() {
+  const link = document.getElementById("referralLink").value;
+  try {
+    await navigator.clipboard.writeText(link);
+    const el = document.getElementById("refCopied");
+    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+  } catch(e) { alert("複製失敗，請手動選取"); }
+}
+
+// ── 小編回覆收件匣 ───────────────────────────────────────────────────────────
+
+let _inboxItems = [];  // [{id, post_url, post_text, commenter, comment_text, reply_text}]
+let _scanTaskId = null;
+let _scanPollTimer = null;
+
+async function startInboxScan() {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請先選擇帳號"); return; }
+  const acc = userAccounts.find(a => a.id === accountId);
+  if (!acc?.handle) { alert("請先在「帳號設定」中填寫 Threads @帳號名（handle）再掃描"); return; }
+
+  const btn = document.getElementById("btnScan");
+  const statusEl = document.getElementById("scanStatus");
+  btn.disabled = true; btn.textContent = "掃描中…";
+  statusEl.textContent = "任務推送中，等待 Extension 執行…";
+
+  try {
+    const res = await fetch("/api/editor/scan", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id: accountId,
+        handle: acc.handle,
+        max_posts: parseInt(document.getElementById("editorMaxPosts").value) || 5,
+      }),
+    });
+    const data = await res.json();
+    if (!data.success) { alert("推送失敗：" + data.error); btn.disabled = false; btn.textContent = "📡 掃描我的留言"; return; }
+    _scanTaskId = data.task_id;
+    statusEl.textContent = "Extension 掃描中，完成後自動更新…";
+    // 每 5 秒輪詢一次收件匣
+    clearInterval(_scanPollTimer);
+    _scanPollTimer = setInterval(pollInbox, 5000);
+    // 30 秒後停止輪詢
+    setTimeout(() => { clearInterval(_scanPollTimer); btn.disabled = false; btn.textContent = "📡 掃描我的留言"; }, 90000);
+  } catch(e) {
+    alert("網路錯誤"); btn.disabled = false; btn.textContent = "📡 掃描我的留言";
+  }
+}
+
+async function pollInbox() {
+  try {
+    const res  = await fetch("/api/editor/inbox");
+    const data = await res.json();
+    if (!data.success) return;
+    const items = data.items || [];
+    if (items.length !== _inboxItems.length || JSON.stringify(items.map(i=>i.id)) !== JSON.stringify(_inboxItems.map(i=>i.id))) {
+      _inboxItems = items;
+      renderInbox();
+      if (items.length > 0) {
+        clearInterval(_scanPollTimer);
+        const btn = document.getElementById("btnScan");
+        btn.disabled = false; btn.textContent = "📡 再次掃描";
+        document.getElementById("scanStatus").textContent = `找到 ${items.length} 則留言`;
+      }
+    }
+  } catch(e) {}
+}
+
+async function loadInbox() {
+  try {
+    const res  = await fetch("/api/editor/inbox");
+    const data = await res.json();
+    _inboxItems = data.items || [];
+    renderInbox();
+  } catch(e) {}
+}
+
+function renderInbox() {
+  const list  = document.getElementById("inboxList");
+  const empty = document.getElementById("inboxEmpty");
+  const actions = document.getElementById("inboxActions");
+
+  if (!_inboxItems.length) {
+    list.innerHTML = ""; empty.classList.remove("hidden");
+    actions.classList.add("hidden"); return;
+  }
+  empty.classList.add("hidden");
+  actions.classList.remove("hidden");
+  updateCheckedCount();
+
+  list.innerHTML = _inboxItems.map((item, idx) => `
+    <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm" id="inboxCard_${item.id}">
+      <div class="flex items-start gap-3">
+        <input type="checkbox" class="inbox-check mt-1 rounded" data-id="${item.id}" onchange="updateCheckedCount()">
+        <div class="flex-1 min-w-0">
+          <div class="text-xs text-gray-400 mb-1 truncate">
+            📌 <a href="${esc(item.post_url)}" target="_blank" class="hover:underline">${esc((item.post_text||item.post_url).slice(0,60))}…</a>
+          </div>
+          <div class="text-sm font-medium text-gray-700 mb-1">@${esc(item.commenter)}</div>
+          <div class="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2 mb-3">${esc(item.comment_text)}</div>
+          <textarea id="reply_${item.id}" rows="2" placeholder="回覆內容（可 AI 生成或自己打）"
+            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:border-indigo-300 focus:outline-none"
+          >${esc(item.reply_text || "")}</textarea>
+          <div class="flex gap-2 mt-2">
+            <button onclick="genOneReply(${item.id}, '${esc(item.post_text||"")}', '${esc(item.commenter)}', '${esc(item.comment_text)}')"
+              class="px-3 py-1 rounded-lg text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition">
+              ✨ AI 生成
+            </button>
+            <button onclick="sendOneReply(${item.id})"
+              class="px-3 py-1 rounded-lg text-xs font-medium bg-green-50 hover:bg-green-100 text-green-600 transition">
+              💬 發送（扣 1 點）
+            </button>
+            <span id="replyStatus_${item.id}" class="text-xs self-center text-gray-400"></span>
+          </div>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+function updateCheckedCount() {
+  const checked = [...document.querySelectorAll(".inbox-check:checked")];
+  document.getElementById("checkedCount").textContent = `已選 ${checked.length} 則`;
+}
+
+function toggleCheckAll(checked) {
+  document.querySelectorAll(".inbox-check").forEach(cb => { cb.checked = checked; });
+  updateCheckedCount();
+}
+
+async function genOneReply(inboxId, postText, commenter, commentText) {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請選擇帳號"); return; }
+  const statusEl = document.getElementById(`replyStatus_${inboxId}`);
+  statusEl.textContent = "生成中…";
+  try {
+    const res = await fetch("/api/editor/gen-reply", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ inbox_id: inboxId, account_id: accountId,
+        post_text: postText, commenter, comment_text: commentText }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById(`reply_${inboxId}`).value = data.reply;
+      // 更新本地資料
+      const item = _inboxItems.find(i => i.id === inboxId);
+      if (item) item.reply_text = data.reply;
+      statusEl.textContent = "";
+    } else {
+      statusEl.textContent = "生成失敗";
+    }
+  } catch(e) { statusEl.textContent = "網路錯誤"; }
+}
+
+async function genAllReplies() {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請選擇帳號"); return; }
+  const btn = document.getElementById("btnGenAll");
+  btn.disabled = true; btn.textContent = "生成中…";
+  for (const item of _inboxItems) {
+    if (!item.reply_text) {
+      await genOneReply(item.id, item.post_text || "", item.commenter, item.comment_text);
+    }
+  }
+  btn.disabled = false; btn.textContent = "✨ AI 生成全部回覆";
+}
+
+async function sendOneReply(inboxId) {
+  const item = _inboxItems.find(i => i.id === inboxId);
+  if (!item) return;
+  const replyText = document.getElementById(`reply_${inboxId}`).value.trim();
+  if (!replyText) { alert("請先輸入或生成回覆內容"); return; }
+  const accountId = document.getElementById("editorAccount").value;
+  const statusEl  = document.getElementById(`replyStatus_${inboxId}`);
+  statusEl.textContent = "發送中…";
+  try {
+    const res = await fetch("/api/editor/send-replies", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id: accountId,
+        items: [{ id: inboxId, post_url: item.post_url,
+                  commenter: item.commenter, comment_text: item.comment_text,
+                  reply_text: replyText }],
+      }),
+    });
+    const data = await res.json();
+    if (data.sent > 0) {
+      document.getElementById(`inboxCard_${inboxId}`)?.remove();
+      _inboxItems = _inboxItems.filter(i => i.id !== inboxId);
+      if (!_inboxItems.length) renderInbox();
+      else updateCheckedCount();
+    } else {
+      statusEl.textContent = "發送失敗（點數不足？）";
+    }
+  } catch(e) { statusEl.textContent = "網路錯誤"; }
+}
+
+async function sendChecked() {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請選擇帳號"); return; }
+  const checked = [...document.querySelectorAll(".inbox-check:checked")];
+  if (!checked.length) { alert("請先勾選要發送的留言"); return; }
+
+  const items = checked.map(cb => {
+    const id   = parseInt(cb.dataset.id);
+    const item = _inboxItems.find(i => i.id === id);
+    return item ? {
+      id,
+      post_url:     item.post_url,
+      commenter:    item.commenter,
+      comment_text: item.comment_text,
+      reply_text:   document.getElementById(`reply_${id}`)?.value?.trim() || item.reply_text,
+    } : null;
+  }).filter(Boolean).filter(i => i.reply_text);
+
+  if (!items.length) { alert("請先為勾選的留言輸入回覆內容"); return; }
+
+  const btn = document.getElementById("btnSendChecked");
+  btn.disabled = true; btn.textContent = "發送中…";
+  try {
+    const res = await fetch("/api/editor/send-replies", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: accountId, items }),
+    });
+    const data = await res.json();
+    alert(`✅ 已發送 ${data.sent} 則${data.failed > 0 ? `，${data.failed} 則失敗（點數不足？）` : ""}`);
+    // 移除已發送的卡片
+    items.slice(0, data.sent).forEach(i => {
+      document.getElementById(`inboxCard_${i.id}`)?.remove();
+      _inboxItems = _inboxItems.filter(x => x.id !== i.id);
+    });
+    if (!_inboxItems.length) renderInbox();
+    else updateCheckedCount();
+  } catch(e) { alert("網路錯誤"); }
+  btn.disabled = false; btn.textContent = "💬 發送已勾選（扣點）";
+}
+
+async function clearInbox() {
+  if (!confirm("確定要清除所有待回覆留言嗎？")) return;
+  try {
+    await fetch("/api/editor/clear-inbox", { method: "POST" });
+    _inboxItems = [];
+    renderInbox();
+  } catch(e) {}
+}
+
+// ── 排程發文 ─────────────────────────────────────────────────────────────────
+let _schedules = [];
+
+async function loadSchedules() {
+  try {
+    const res  = await fetch("/api/schedules");
+    const data = await res.json();
+    _schedules = data.schedules || [];
+    renderScheduleList();
+  } catch(e) {}
+}
+
+function renderScheduleList() {
+  const el = document.getElementById("scheduleList");
+  if (!_schedules.length) {
+    el.innerHTML = '<div class="bg-white rounded-2xl border border-gray-200 p-8 text-center text-gray-400 text-sm">尚無排程，點右上角「＋ 新增排程」</div>';
+    return;
+  }
+  el.innerHTML = _schedules.map(s => {
+    const times = JSON.parse(s.times || "[]").join("、") || "（未設定時間）";
+    const acc   = userAccounts.find(a => a.id === s.account_id);
+    return `
+    <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center justify-between gap-3">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-sm font-medium text-gray-700">${esc(s.name)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full ${s.enabled ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}">
+            ${s.enabled ? "啟用中" : "已停用"}
+          </span>
+        </div>
+        <div class="text-xs text-gray-400">
+          帳號：${esc(acc?.name || s.account_id)} ·
+          發文時間：${esc(times)} ·
+          模式：${s.content_mode === "fixed" ? "固定文字" : "AI 生成"}
+        </div>
+        ${s.last_run ? `<div class="text-xs text-gray-300 mt-0.5">上次執行：${esc(s.last_run)}</div>` : ""}
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <button onclick="toggleSchedule('${esc(s.id)}', ${s.enabled ? 0 : 1})"
+          class="text-xs px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-500">
+          ${s.enabled ? "停用" : "啟用"}
+        </button>
+        <button onclick="deleteSchedule('${esc(s.id)}')"
+          class="text-xs px-3 py-1.5 rounded-lg text-red-400 hover:text-red-600">刪除</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function openAddSchedule() {
+  document.getElementById("scheduleModal").classList.remove("hidden");
+  fillScheduleAccountSelect();
+}
+
+function fillScheduleAccountSelect() {
+  const sel = document.getElementById("schedAccSelect");
+  if (!sel) return;
+  sel.innerHTML = userAccounts.length
+    ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
+    : '<option value="">（請先新增帳號）</option>';
+}
+
+function closeScheduleModal() {
+  document.getElementById("scheduleModal").classList.add("hidden");
+}
+
+function toggleScheduleMode() {
+  const mode = document.getElementById("schedMode").value;
+  document.getElementById("schedAiSection").classList.toggle("hidden", mode !== "ai");
+  document.getElementById("schedFixedSection").classList.toggle("hidden", mode !== "fixed");
+}
+
+async function saveSchedule() {
+  const name  = document.getElementById("schedName").value.trim();
+  const accId = document.getElementById("schedAccSelect").value;
+  const times = document.getElementById("schedTimes").value.split(/[,\s，]+/)
+    .map(t => t.trim()).filter(t => /^\d{2}:\d{2}$/.test(t));
+  const mode  = document.getElementById("schedMode").value;
+  const aiPrompt   = document.getElementById("schedAiPrompt").value.trim();
+  const fixedTexts = document.getElementById("schedFixedTexts").value
+    .split("\n---\n").map(t => t.trim()).filter(Boolean);
+
+  if (!name)       { alert("請填入排程名稱"); return; }
+  if (!accId)      { alert("請選擇帳號"); return; }
+  if (!times.length) { alert("請輸入至少一個時間（格式：HH:MM）"); return; }
+
+  const res  = await fetch("/api/schedules", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, account_id: accId, times, content_mode: mode,
+                           ai_prompt: aiPrompt, fixed_texts: fixedTexts }),
+  });
+  const data = await res.json();
+  if (data.success) {
+    closeScheduleModal();
+    await loadSchedules();
+  } else { alert("儲存失敗：" + data.error); }
+}
+
+async function toggleSchedule(id, enabled) {
+  await fetch(`/api/schedules/${id}`, {
+    method: "PUT", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ enabled }),
+  });
+  await loadSchedules();
+}
+
+async function deleteSchedule(id) {
+  if (!confirm("確定刪除這個排程？")) return;
+  await fetch(`/api/schedules/${id}`, { method: "DELETE" });
+  await loadSchedules();
+}
+
+// ── 使用記錄 ─────────────────────────────────────────────────────────────────
+async function loadLog() {
+  try {
+    const res  = await fetch("/api/log");
+    const data = await res.json();
+    const el   = document.getElementById("logList");
+    if (!data.success || !data.log?.length) {
+      el.innerHTML = '<div class="text-gray-400 text-xs text-center py-4">尚無記錄</div>';
+      return;
+    }
+    el.innerHTML = data.log.map(r => `
+      <div class="flex items-center gap-3 py-1.5 border-b border-gray-100">
+        <span class="text-xs text-gray-400 w-32 flex-shrink-0">${esc(r.created_at?.slice(0,16)||"")}</span>
+        <span class="text-xs px-2 py-0.5 rounded-full ${r.type==="comment"?"bg-blue-50 text-blue-600":"bg-indigo-50 text-indigo-600"}">${esc(r.type)}</span>
+        <span class="text-xs text-gray-600 truncate flex-1">${esc(r.detail||"")}</span>
+        <span class="text-xs text-orange-500 flex-shrink-0">-${r.cost} 點</span>
+      </div>`
+    ).join("");
+  } catch(e) {}
+}
+
+// ── 管理員 ───────────────────────────────────────────────────────────────────
+async function loadAdminUsers() {
+  try {
+    const res  = await fetch("/api/admin/users");
+    const data = await res.json();
+    document.getElementById("adminUserList").innerHTML = (data.users||[]).map(u => `
+      <div class="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-2.5">
+        <div>
+          <div class="text-sm font-medium text-gray-700">${esc(u.email)}</div>
+          <div class="text-xs text-gray-400">${esc(u.name||"")} · 點數：${u.credits} · 今日：${u.daily_used}</div>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="quickAddCredits('${esc(u.email)}',500)"
+            class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-lg">+500</button>
+          <button onclick="quickAddCredits('${esc(u.email)}',3000)"
+            class="text-xs px-2 py-1 bg-green-100 text-green-600 rounded-lg">+3000</button>
+          <button onclick="adminBlock('${esc(u.email)}',${u.blocked?0:1})"
+            class="text-xs px-2 py-1 ${u.blocked?"bg-gray-100 text-gray-500":"bg-red-50 text-red-500"} rounded-lg">
+            ${u.blocked?"解封":"封鎖"}
+          </button>
+        </div>
+      </div>`
+    ).join("");
+  } catch(e) {}
+}
+
+async function adminAddCredits() {
+  const email  = document.getElementById("adminEmail").value.trim();
+  const amount = parseInt(document.getElementById("adminAmount").value);
+  if (!email || !amount) { alert("請填入 Email 和數量"); return; }
+  await quickAddCredits(email, amount);
+}
+
+async function quickAddCredits(email, amount) {
+  const res  = await fetch("/api/admin/add-credits", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ email, amount }),
+  });
+  const data = await res.json();
+  if (data.success) loadAdminUsers();
+  else alert("失敗：" + data.error);
+}
+
+async function adminBlock(email, blocked) {
+  await fetch("/api/admin/set-blocked", {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ email, blocked: !!blocked }),
+  });
+  loadAdminUsers();
+}
+</script>
+</body>
+</html>

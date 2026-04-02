@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5888 小編助手 — Threads 自動化工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .gradient-bg { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%); }
+    .feature-card:hover { transform: translateY(-4px); transition: transform 0.2s; }
+    html { scroll-behavior: smooth; }
+  </style>
+</head>
+<body class="bg-white text-gray-800">
+
+<!-- ── 導覽列 ────────────────────────────────────────────────────────────── -->
+<nav class="sticky top-0 bg-white/90 backdrop-blur border-b border-gray-100 z-50">
+  <div class="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
+    <span class="font-bold text-lg text-indigo-600">✍️ 5888 小編助手</span>
+    <div class="flex gap-3">
+      <a href="#pricing" class="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5">定價</a>
+      <a href="#install" class="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5">安裝</a>
+      <a href="#faq" class="text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5">FAQ</a>
+      <a href="/app" class="text-sm bg-indigo-600 text-white px-4 py-1.5 rounded-lg hover:bg-indigo-700 font-medium">進入控制台</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="gradient-bg text-white py-20 px-6">
+  <div class="max-w-3xl mx-auto text-center">
+    <div class="text-6xl mb-6">✍️</div>
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+      5888 小編助手
+    </h1>
+    <p class="text-xl md:text-2xl opacity-90 mb-3">Threads 內容自動化，省時省力衝互動</p>
+    <p class="text-base opacity-75 mb-10">熱門話題一鍵改寫發文・海巡關鍵字自動留言・排程發文不漏班</p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="/app" class="bg-white text-indigo-600 font-bold px-8 py-3 rounded-xl text-lg hover:bg-gray-50 shadow-lg">
+        免費試用 →
+      </a>
+      <a href="#install" class="border border-white/50 text-white font-medium px-8 py-3 rounded-xl text-lg hover:bg-white/10">
+        安裝說明
+      </a>
+    </div>
+    <p class="text-sm opacity-60 mt-6">新用戶加入即送 100 點免費體驗</p>
+  </div>
+</section>
+
+<!-- ── 功能介紹 ───────────────────────────────────────────────────────────── -->
+<section class="py-20 px-6 bg-gray-50">
+  <div class="max-w-5xl mx-auto">
+    <h2 class="text-3xl font-bold text-center mb-3">三大核心功能</h2>
+    <p class="text-center text-gray-400 mb-12">一個工具，搞定 Threads 日常經營</p>
+    <div class="grid md:grid-cols-3 gap-8">
+
+      <div class="feature-card bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center">
+        <div class="text-5xl mb-4">🔥</div>
+        <h3 class="text-xl font-bold mb-3">熱門話題改寫發文</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">
+          自動抓取 Google 新聞、Yahoo 新聞當天熱門話題，套上你的人設用 AI 改寫，一鍵發到 Threads。
+        </p>
+      </div>
+
+      <div class="feature-card bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center">
+        <div class="text-5xl mb-4">🔍</div>
+        <h3 class="text-xl font-bold mb-3">關鍵字海巡留言</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">
+          輸入關鍵字，自動搜尋 Threads 上的相關貼文，AI 生成符合人設的留言，自動送出。
+        </p>
+      </div>
+
+      <div class="feature-card bg-white rounded-2xl p-8 shadow-sm border border-gray-100 text-center">
+        <div class="text-5xl mb-4">📅</div>
+        <h3 class="text-xl font-bold mb-3">排程定時發文</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">
+          設定好時間，AI 自動生成內容並發出，不需要手動守候，每天準時更新帳號。
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── 運作方式 ───────────────────────────────────────────────────────────── -->
+<section class="py-20 px-6">
+  <div class="max-w-3xl mx-auto text-center">
+    <h2 class="text-3xl font-bold mb-3">怎麼運作？</h2>
+    <p class="text-gray-400 mb-12">雲端控制台 + Chrome 擴充套件，在你自己的瀏覽器執行</p>
+    <div class="flex flex-col md:flex-row gap-4 items-center justify-center">
+      <div class="bg-indigo-50 rounded-2xl px-8 py-6 text-center flex-1">
+        <div class="text-3xl mb-2">🌐</div>
+        <div class="font-bold text-indigo-700">雲端控制台</div>
+        <div class="text-sm text-gray-500 mt-1">設定任務、查看結果、管理帳號</div>
+      </div>
+      <div class="text-gray-400 text-2xl hidden md:block">→</div>
+      <div class="bg-purple-50 rounded-2xl px-8 py-6 text-center flex-1">
+        <div class="text-3xl mb-2">🧩</div>
+        <div class="font-bold text-purple-700">Chrome 擴充套件</div>
+        <div class="text-sm text-gray-500 mt-1">在你的瀏覽器執行動作，用你登入的帳號</div>
+      </div>
+      <div class="text-gray-400 text-2xl hidden md:block">→</div>
+      <div class="bg-green-50 rounded-2xl px-8 py-6 text-center flex-1">
+        <div class="text-3xl mb-2">✅</div>
+        <div class="font-bold text-green-700">自動完成</div>
+        <div class="text-sm text-gray-500 mt-1">留言、發文、回報結果</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── 定價 ──────────────────────────────────────────────────────────────── -->
+<section id="pricing" class="py-20 px-6 bg-gray-50">
+  <div class="max-w-xl mx-auto text-center">
+    <h2 class="text-3xl font-bold mb-3">簡單透明的定價</h2>
+    <p class="text-gray-400 mb-12">只付你用到的，不浪費</p>
+
+    <div class="bg-white rounded-2xl shadow-lg border border-indigo-100 p-10">
+      <div class="text-indigo-600 font-bold text-sm uppercase tracking-wider mb-2">月訂閱方案</div>
+      <div class="text-5xl font-extrabold text-gray-800 mb-1">NT$ 450</div>
+      <div class="text-gray-400 text-sm mb-8">/ 月</div>
+
+      <ul class="text-left space-y-3 mb-8 text-gray-600">
+        <li class="flex items-center gap-3"><span class="text-green-500 font-bold">✓</span> 3,000 點（每月自動補點）</li>
+        <li class="flex items-center gap-3"><span class="text-green-500 font-bold">✓</span> 每日最多 100 次動作</li>
+        <li class="flex items-center gap-3"><span class="text-green-500 font-bold">✓</span> 留言 / 發文 各扣 1 點</li>
+        <li class="flex items-center gap-3"><span class="text-green-500 font-bold">✓</span> AI 改寫生成不扣點</li>
+        <li class="flex items-center gap-3"><span class="text-green-500 font-bold">✓</span> 多帳號管理</li>
+        <li class="flex items-center gap-3"><span class="text-green-500 font-bold">✓</span> 新用戶加入送 100 點試用</li>
+      </ul>
+
+      <a href="/app" class="block w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-center hover:bg-indigo-700 text-lg">
+        立即開始使用
+      </a>
+      <p class="text-xs text-gray-400 mt-4">先免費試用 100 點，滿意再訂閱</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── 安裝步驟 ───────────────────────────────────────────────────────────── -->
+<section id="install" class="py-20 px-6">
+  <div class="max-w-3xl mx-auto">
+    <h2 class="text-3xl font-bold text-center mb-3">安裝方式</h2>
+    <p class="text-center text-gray-400 mb-12">只需要 5 分鐘，完全免下載安裝程式</p>
+
+    <div class="space-y-6">
+      <div class="flex gap-6 items-start">
+        <div class="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-lg">1</div>
+        <div>
+          <h3 class="font-bold text-lg mb-1">下載 Chrome 擴充套件</h3>
+          <p class="text-gray-500 text-sm">到下方連結下載擴充套件 ZIP 檔，解壓縮到任意資料夾。</p>
+        </div>
+      </div>
+
+      <div class="flex gap-6 items-start">
+        <div class="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-lg">2</div>
+        <div>
+          <h3 class="font-bold text-lg mb-1">開啟 Chrome 擴充套件頁面</h3>
+          <p class="text-gray-500 text-sm">在 Chrome 網址列輸入 <code class="bg-gray-100 px-1 rounded">chrome://extensions/</code>，開啟右上角「開發人員模式」。</p>
+        </div>
+      </div>
+
+      <div class="flex gap-6 items-start">
+        <div class="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-lg">3</div>
+        <div>
+          <h3 class="font-bold text-lg mb-1">載入擴充套件</h3>
+          <p class="text-gray-500 text-sm">點「載入未封裝項目」，選擇剛才解壓縮的資料夾，套件就會出現在 Chrome 工具列。</p>
+        </div>
+      </div>
+
+      <div class="flex gap-6 items-start">
+        <div class="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center shrink-0 text-lg">4</div>
+        <div>
+          <h3 class="font-bold text-lg mb-1">用 Google 帳號登入</h3>
+          <p class="text-gray-500 text-sm">點工具列的 <strong>5888 小編助手</strong> 圖示 → 前往登入，用 Google 帳號登入，新用戶自動取得 100 點。</p>
+        </div>
+      </div>
+
+      <div class="flex gap-6 items-start">
+        <div class="w-10 h-10 rounded-full bg-green-500 text-white font-bold flex items-center justify-center shrink-0 text-lg">✓</div>
+        <div>
+          <h3 class="font-bold text-lg mb-1 text-green-600">開始使用！</h3>
+          <p class="text-gray-500 text-sm">在帳號設定填入 Threads API Token 和 Gemini API Key，就可以開始用所有功能。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-10 text-center">
+      <a href="#" class="inline-block bg-indigo-600 text-white font-bold px-8 py-3 rounded-xl hover:bg-indigo-700">
+        下載擴充套件（即將提供）
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ── FAQ ──────────────────────────────────────────────────────────────── -->
+<section id="faq" class="py-20 px-6 bg-gray-50">
+  <div class="max-w-2xl mx-auto">
+    <h2 class="text-3xl font-bold text-center mb-12">常見問題</h2>
+
+    <div class="space-y-4">
+      <details class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 group">
+        <summary class="font-bold cursor-pointer list-none flex justify-between items-center">
+          需要安裝任何程式嗎？
+          <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <p class="text-gray-500 text-sm mt-3 leading-relaxed">
+          不需要。只需要安裝一個 Chrome 擴充套件，其他都在網頁上操作。Windows / Mac 都支援。
+        </p>
+      </details>
+
+      <details class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 group">
+        <summary class="font-bold cursor-pointer list-none flex justify-between items-center">
+          會不會被 Threads 封號？
+          <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <p class="text-gray-500 text-sm mt-3 leading-relaxed">
+          工具模擬人工操作，有每日 100 次的上限保護。建議留言內容自然，避免重複發相同文字。任何自動化工具都有一定風險，請自行評估。
+        </p>
+      </details>
+
+      <details class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 group">
+        <summary class="font-bold cursor-pointer list-none flex justify-between items-center">
+          點數用完了怎麼辦？
+          <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <p class="text-gray-500 text-sm mt-3 leading-relaxed">
+          可以聯絡我們加購點數，或等下個月方案自動補點。AI 改寫生成功能不扣點，可以無限使用。
+        </p>
+      </details>
+
+      <details class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 group">
+        <summary class="font-bold cursor-pointer list-none flex justify-between items-center">
+          需要自己的 Gemini API Key 嗎？
+          <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <p class="text-gray-500 text-sm mt-3 leading-relaxed">
+          是的，AI 生成功能需要你自己的 Google Gemini API Key（免費申請，有每日免費額度）。這樣你的 AI 配額完全由你掌控。
+        </p>
+      </details>
+
+      <details class="bg-white rounded-xl p-6 shadow-sm border border-gray-100 group">
+        <summary class="font-bold cursor-pointer list-none flex justify-between items-center">
+          如何取得 Threads API Token？
+          <span class="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <p class="text-gray-500 text-sm mt-3 leading-relaxed">
+          需要到 Meta for Developers 申請 Threads API 存取權限。申請流程約 1-2 天審核，我們有提供詳細教學。
+        </p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ── 聯絡 / CTA ─────────────────────────────────────────────────────────── -->
+<section class="gradient-bg text-white py-20 px-6 text-center">
+  <h2 class="text-3xl font-bold mb-4">準備好開始了嗎？</h2>
+  <p class="text-lg opacity-80 mb-8">新用戶免費送 100 點，現在就試試看</p>
+  <a href="/app" class="inline-block bg-white text-indigo-600 font-bold px-10 py-4 rounded-xl text-lg hover:bg-gray-50 shadow-lg">
+    免費開始使用 →
+  </a>
+  <p class="text-sm opacity-60 mt-8">有問題？聯絡 LINE：<strong>@5888</strong>（請自行更新聯絡方式）</p>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="bg-gray-900 text-gray-400 py-8 px-6 text-center text-sm">
+  <p>© 2026 5888 小編助手 · <a href="/app" class="hover:text-white">控制台</a></p>
+</footer>
+
+</body>
+</html>
