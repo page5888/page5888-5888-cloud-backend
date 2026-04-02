@@ -51,6 +51,7 @@
     <div class="max-w-5xl mx-auto px-4 flex gap-1">
       <button onclick="switchTab('trending')"  class="tab-btn active px-5 py-3 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600 transition">🔥 熱門發文</button>
       <button onclick="switchTab('patrol')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🔍 海巡留言</button>
+      <button onclick="switchTab('editor')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">💬 小編回覆</button>
       <button onclick="switchTab('schedule')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📅 排程發文</button>
       <button onclick="switchTab('accounts')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">👤 帳號設定</button>
       <button onclick="switchTab('log')"       class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📋 使用記錄</button>
@@ -289,6 +290,104 @@
       </div>
     </div>
 
+    <!-- ── 💬 小編回覆 ─────────────────────────────────────────────────────── -->
+    <div id="tabEditor" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h2 class="font-semibold text-gray-700 mb-1">💬 AI 小編回覆</h2>
+        <p class="text-sm text-gray-400 mb-5">把別人留在你貼文下的留言貼進來，AI 幫你用品牌口吻生成回覆</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">使用帳號（人設來源）</label>
+            <select id="editorAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">留言者 @帳號名</label>
+            <input id="editorCommenter" type="text" placeholder="例：user123"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">你的貼文內容（摘要即可）</label>
+            <textarea id="editorPostText" rows="2" placeholder="例：今天分享花蓮電子鎖安裝心得…"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">對方的留言內容</label>
+            <textarea id="editorCommentText" rows="3" placeholder="把對方的留言文字貼進來"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+          </div>
+        </div>
+
+        <!-- 選填：商品資訊 -->
+        <details class="mb-4">
+          <summary class="text-xs text-gray-400 cursor-pointer select-none hover:text-gray-600">＋ 選填：商品資訊（若留言與商品有關可帶入）</summary>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">商品名稱</label>
+              <input id="editorProductTitle" type="text" placeholder="例：感應卡電子鎖"
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="text-xs text-gray-500 mb-1 block">商品連結</label>
+              <input id="editorProductUrl" type="text" placeholder="https://shopee.tw/..."
+                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            </div>
+          </div>
+        </details>
+
+        <button onclick="genEditorReply()" id="btnEditorReply"
+          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          ✨ AI 生成回覆
+        </button>
+
+        <!-- 結果 -->
+        <div id="editorReplyResult" class="mt-5 hidden">
+          <label class="text-xs text-gray-500 mb-2 block">AI 生成的回覆（可直接修改）</label>
+          <textarea id="editorReplyText" rows="4"
+            class="w-full border border-indigo-200 bg-indigo-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-indigo-400"></textarea>
+          <div class="flex gap-3 mt-3">
+            <button onclick="copyEditorReply()" id="btnCopyReply"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
+              📋 複製回覆
+            </button>
+            <span id="editorCopied" class="text-xs text-green-500 self-center hidden">已複製！</span>
+            <button onclick="clearEditorForm()"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+              清除
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 批次模式 -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h3 class="font-medium text-gray-700 mb-1">📋 批次回覆（多則留言）</h3>
+        <p class="text-sm text-gray-400 mb-4">一次輸入多則留言，AI 逐一生成回覆，方便批量處理互動</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
+            <select id="editorBatchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
+          </div>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">你的貼文摘要</label>
+            <input id="editorBatchPostText" type="text" placeholder="例：電子鎖安裝心得"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">留言列表（每行格式：@帳號 留言內容）</label>
+            <textarea id="editorBatchComments" rows="5"
+              placeholder="@user1 請問這個有保固嗎&#10;@user2 在哪裡可以預約&#10;@user3 價格怎麼算"
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono resize-none"></textarea>
+          </div>
+        </div>
+        <button onclick="genBatchEditorReplies()" id="btnBatchReply"
+          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          ✨ 批次生成回覆
+        </button>
+        <div id="batchReplyResults" class="mt-4 space-y-3"></div>
+      </div>
+    </div>
+
     <!-- ── 📅 排程發文 ─────────────────────────────────────────────────────── -->
     <div id="tabSchedule" class="hidden space-y-4">
       <div class="flex items-center justify-between">
@@ -509,7 +608,7 @@ async function doLogout() {
 
 // ── 頁籤切換 ─────────────────────────────────────────────────────────────────
 function switchTab(tab) {
-  ["trending","patrol","schedule","accounts","log","admin"].forEach(t => {
+  ["trending","patrol","editor","schedule","accounts","log","admin"].forEach(t => {
     document.getElementById("tabBtn_" + t)?.classList.remove("active");
     document.getElementById("tab" + t.charAt(0).toUpperCase() + t.slice(1))
       ?.classList.toggle("hidden", t !== tab);
@@ -522,7 +621,7 @@ function switchTab(tab) {
   if (tab === "schedule") loadSchedules();
   if (tab === "log")      loadLog();
   if (tab === "admin")    loadAdminUsers();
-  if (tab === "trending" || tab === "patrol") fillAccountSelects();
+  if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
   if (tab === "patrol")   loadPatrolConfig();
 }
 
@@ -539,7 +638,7 @@ function fillAccountSelects() {
   const opts = userAccounts.length
     ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
     : '<option value="">（尚未設定帳號）</option>';
-  ["trendAccount","patrolAccount","batchAccount","promoAccount"].forEach(id => {
+  ["trendAccount","patrolAccount","batchAccount","promoAccount","editorAccount","editorBatchAccount"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts;
   });
@@ -1077,6 +1176,116 @@ async function runPromoPatrol() {
       }
     } catch(e) {}
   }, 3000);
+}
+
+// ── AI 小編回覆 ──────────────────────────────────────────────────────────────
+
+async function genEditorReply() {
+  const accountId    = document.getElementById("editorAccount").value;
+  const postText     = document.getElementById("editorPostText").value.trim();
+  const commenter    = document.getElementById("editorCommenter").value.trim();
+  const commentText  = document.getElementById("editorCommentText").value.trim();
+  const productTitle = document.getElementById("editorProductTitle").value.trim();
+  const productUrl   = document.getElementById("editorProductUrl").value.trim();
+
+  if (!accountId)   { alert("請選擇帳號"); return; }
+  if (!commentText) { alert("請輸入對方的留言內容"); return; }
+
+  const btn = document.getElementById("btnEditorReply");
+  btn.disabled = true; btn.textContent = "生成中…";
+
+  try {
+    const res  = await fetch("/api/ai/editor-reply", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id: accountId, post_text: postText,
+        comment_author: commenter, comment_text: commentText,
+        product_title: productTitle, product_url: productUrl,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById("editorReplyText").value = data.reply;
+      document.getElementById("editorReplyResult").classList.remove("hidden");
+    } else {
+      alert("AI 生成失敗：" + data.error);
+    }
+  } catch(e) { alert("網路錯誤"); }
+  finally { btn.disabled = false; btn.textContent = "✨ AI 生成回覆"; }
+}
+
+async function copyEditorReply() {
+  const text = document.getElementById("editorReplyText").value;
+  try {
+    await navigator.clipboard.writeText(text);
+    const el = document.getElementById("editorCopied");
+    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+  } catch(e) { alert("複製失敗，請手動選取"); }
+}
+
+function clearEditorForm() {
+  ["editorPostText","editorCommenter","editorCommentText","editorProductTitle","editorProductUrl","editorReplyText"].forEach(id => {
+    document.getElementById(id).value = "";
+  });
+  document.getElementById("editorReplyResult").classList.add("hidden");
+}
+
+async function genBatchEditorReplies() {
+  const accountId = document.getElementById("editorBatchAccount").value;
+  const postText  = document.getElementById("editorBatchPostText").value.trim();
+  const rawLines  = document.getElementById("editorBatchComments").value.trim().split("\n").filter(Boolean);
+
+  if (!accountId)       { alert("請選擇帳號"); return; }
+  if (!rawLines.length) { alert("請輸入留言列表"); return; }
+
+  const btn = document.getElementById("btnBatchReply");
+  const box = document.getElementById("batchReplyResults");
+  btn.disabled = true; btn.textContent = "生成中…";
+  box.innerHTML = '<div class="text-sm text-indigo-500">AI 生成中，請稍候…</div>';
+
+  // 解析每行 "@帳號 留言內容"
+  const comments = rawLines.map(line => {
+    const m = line.match(/^@?(\S+)\s+([\s\S]+)$/);
+    return m ? { author: m[1], text: m[2].trim() } : { author: "", text: line.trim() };
+  });
+
+  const results = [];
+  for (const c of comments) {
+    try {
+      const res  = await fetch("/api/ai/editor-reply", {
+        method: "POST", headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          account_id: accountId, post_text: postText,
+          comment_author: c.author, comment_text: c.text,
+        }),
+      });
+      const data = await res.json();
+      results.push({ ...c, reply: data.success ? data.reply : "（生成失敗）", ok: data.success });
+    } catch(e) {
+      results.push({ ...c, reply: "（網路錯誤）", ok: false });
+    }
+  }
+
+  box.innerHTML = results.map((r, i) => `
+    <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
+      <div class="text-xs text-gray-500 mb-1">${r.author ? `@${esc(r.author)} ` : ""}「${esc(r.text.slice(0,60))}${r.text.length>60?'…':''}」</div>
+      <textarea id="batchReply_${i}" rows="2" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none ${r.ok?'':'bg-red-50 border-red-200'}">${esc(r.reply)}</textarea>
+      <button onclick="copyBatchReply(${i})" class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-teal-50 hover:bg-teal-100 text-teal-600 transition">
+        📋 複製
+      </button>
+      <span id="batchCopied_${i}" class="text-xs text-green-500 ml-2 hidden">已複製</span>
+    </div>`).join("");
+
+  btn.disabled = false; btn.textContent = "✨ 批次生成回覆";
+}
+
+async function copyBatchReply(idx) {
+  const text = document.getElementById(`batchReply_${idx}`).value;
+  try {
+    await navigator.clipboard.writeText(text);
+    const el = document.getElementById(`batchCopied_${idx}`);
+    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+  } catch(e) {}
 }
 
 // ── 排程發文 ─────────────────────────────────────────────────────────────────

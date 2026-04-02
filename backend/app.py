@@ -349,6 +349,34 @@ def api_ai_generate():
     return jsonify(generate_schedule_post(gemini_key, acc, prompt))
 
 
+@app.route("/api/ai/editor-reply", methods=["POST"])
+def api_ai_editor_reply():
+    """AI 小編模式：針對自己貼文收到的留言，生成品牌口吻的回覆（不扣點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+
+    data   = request.json or {}
+    acc_id = data.get("account_id")
+    acc    = get_account(acc_id, email)
+    if not acc:
+        return jsonify({"success": False, "error": "帳號不存在"}), 404
+
+    gemini_key = acc.get("gemini_key") or data.get("gemini_key", "")
+    if not gemini_key:
+        return jsonify({"success": False, "error": "請先設定 Gemini API Key"}), 400
+
+    from modules.ai_reply import generate_editor_reply
+    return jsonify(generate_editor_reply(
+        gemini_key, acc,
+        data.get("post_text", ""),
+        data.get("comment_author", ""),
+        data.get("comment_text", ""),
+        data.get("product_title", ""),
+        data.get("product_url", ""),
+    ))
+
+
 @app.route("/api/ai/patrol-comment", methods=["POST"])
 def api_ai_patrol_comment():
     """針對指定貼文生成留言（不扣點）。"""
