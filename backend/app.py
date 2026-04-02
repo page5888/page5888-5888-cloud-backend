@@ -400,6 +400,27 @@ def api_ai_patrol_comment():
     ))
 
 
+@app.route("/api/editor/send-reply", methods=["POST"])
+def api_editor_send_reply():
+    """推送回覆留言任務到 Extension（扣 1 點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data = request.json or {}
+    post_url    = data.get("post_url", "").strip()
+    reply_text  = data.get("reply_text", "").strip()
+    acc_id      = data.get("account_id", "")
+    if not post_url or not reply_text:
+        return jsonify({"success": False, "error": "缺少貼文連結或回覆內容"}), 400
+    task_id = push_task(email, acc_id, "reply_comment", {
+        "post_url":          post_url,
+        "comment_author":    data.get("comment_author", ""),
+        "comment_text_hint": data.get("comment_text", "")[:30],
+        "reply_text":        reply_text,
+    })
+    return jsonify({"success": True, "task_id": task_id})
+
+
 @app.route("/api/patrol/comment", methods=["POST"])
 def api_patrol_comment():
     """推送留言任務到 Extension。"""

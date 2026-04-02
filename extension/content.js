@@ -13,10 +13,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function handleAction(msg) {
   switch (msg.action) {
-    case "comment":    return await doComment(msg.payload);
-    case "scrape":     return await doScrape(msg.payload);
-    case "post":       return await doPost(msg.payload);
-    default:           return { success: false, detail: `未知動作: ${msg.action}` };
+    case "comment":       return await doComment(msg.payload);
+    case "reply_comment": return await doReplyComment(msg.payload);
+    case "scrape":        return await doScrape(msg.payload);
+    case "post":          return await doPost(msg.payload);
+    default:              return { success: false, detail: `未知動作: ${msg.action}` };
   }
 }
 
@@ -75,6 +76,73 @@ async function doComment({ post_url, comment_text }) {
     await delay(1000);
 
     return { success: true, detail: `留言成功：${comment_text.slice(0, 30)}` };
+  } catch (e) {
+    return { success: false, detail: e.message };
+  }
+}
+
+// ── 回覆指定留言（扣 1 點） ──────────────────────────────────────────────────
+async function doReplyComment({ post_url, comment_author, comment_text_hint, reply_text }) {
+  try {
+    const credit = await chrome.runtime.sendMessage({
+      action: "deduct", type: "reply_comment", detail: post_url
+    });
+    if (!credit.ok) return { success: false, detail: credit.reason };
+
+    // 前往貼文頁
+    window.location.href = post_url;
+    await delay(3500);
+
+    // 找目標留言：在頁面所有 article / div 中找包含留言者名稱的那個
+    const authorLower = (comment_author || "").toLowerCase().replace(/^@/, "");
+    const hintLower   = (comment_text_hint || "").slice(0, 30).toLowerCase();
+
+    let targetEl = null;
+
+    // 嘗試找包含留言者名稱的節點
+    const candidates = document.querySelectorAll("article, [role='article'], div[tabindex]");
+    for (const el of candidates) {
+      const text = el.innerText?.toLowerCase() || "";
+      if (authorLower && text.includes(authorLower)) {
+        if (!hintLower || text.includes(hintLower)) {
+          targetEl = el;
+          break;
+        }
+        if (!targetEl) targetEl = el; // 退而求其次只匹配作者
+      }
+    }
+
+    if (targetEl) {
+      // 嘗試在該節點附近點 Reply
+      const replyBtn = [...targetEl.querySelectorAll("button, span[role='button']")]
+        .find(b => b.innerText?.match(/Reply|回覆/i));
+      if (replyBtn) {
+        replyBtn.click();
+        await delay(800);
+      }
+    } else {
+      // 找不到特定留言，fallback：點貼文底部的主留言框
+      const mainReplyBtn = document.querySelector('[aria-label*="Reply"], [aria-label*="留言"]');
+      if (mainReplyBtn) { mainReplyBtn.click(); await delay(800); }
+    }
+
+    // 找輸入框
+    const input = document.querySelector('[contenteditable="true"][role="textbox"]')
+                  || document.querySelector('textarea[placeholder*="Reply"]');
+    if (!input) return { success: false, detail: "找不到回覆輸入框" };
+
+    input.focus();
+    document.execCommand("insertText", false, reply_text);
+    await delay(500);
+
+    const submitBtn = [...document.querySelectorAll("button")].find(b =>
+      b.innerText?.match(/Post|發布|Reply|回覆/i)
+    );
+    if (!submitBtn) return { success: false, detail: "找不到送出按鈕" };
+    submitBtn.click();
+    await delay(1000);
+
+    return { success: true, detail: `回覆成功：${reply_text.slice(0, 30)}` };
   } catch (e) {
     return { success: false, detail: e.message };
   }

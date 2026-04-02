@@ -58,7 +58,7 @@ async function executeTask(task) {
   const payload = typeof task.payload === "string"
     ? JSON.parse(task.payload) : task.payload;
 
-  const actionLabel = { search: "搜尋", comment: "留言", post: "發文" }[task.type] || task.type;
+  const actionLabel = { search: "搜尋", comment: "留言", reply_comment: "回覆留言", post: "發文" }[task.type] || task.type;
   notify("5888 小編助手", `正在執行${actionLabel}任務…`);
 
   // 搜尋任務：先導航到搜尋頁，等載入完再叫 content script 抓資料

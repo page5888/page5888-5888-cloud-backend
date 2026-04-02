@@ -307,6 +307,11 @@
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
           </div>
           <div class="md:col-span-2">
+            <label class="text-xs text-gray-500 mb-1 block">你的貼文連結（Extension 送出用）</label>
+            <input id="editorPostUrl" type="text" placeholder="https://www.threads.net/@帳號/post/..."
+              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          </div>
+          <div class="md:col-span-2">
             <label class="text-xs text-gray-500 mb-1 block">你的貼文內容（摘要即可）</label>
             <textarea id="editorPostText" rows="2" placeholder="例：今天分享花蓮電子鎖安裝心得…"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
@@ -345,14 +350,19 @@
           <label class="text-xs text-gray-500 mb-2 block">AI 生成的回覆（可直接修改）</label>
           <textarea id="editorReplyText" rows="4"
             class="w-full border border-indigo-200 bg-indigo-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-indigo-400"></textarea>
-          <div class="flex gap-3 mt-3">
+          <div class="flex gap-3 mt-3 flex-wrap items-center">
+            <button onclick="sendEditorReply()" id="btnSendReply"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+              💬 送出回覆（扣 1 點）
+            </button>
             <button onclick="copyEditorReply()" id="btnCopyReply"
               class="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
-              📋 複製回覆
+              📋 複製
             </button>
             <span id="editorCopied" class="text-xs text-green-500 self-center hidden">已複製！</span>
+            <span id="editorSendResult" class="text-xs self-center"></span>
             <button onclick="clearEditorForm()"
-              class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition ml-auto">
               清除
             </button>
           </div>
@@ -1223,11 +1233,52 @@ async function copyEditorReply() {
   } catch(e) { alert("複製失敗，請手動選取"); }
 }
 
+async function sendEditorReply() {
+  const postUrl   = document.getElementById("editorPostUrl").value.trim();
+  const replyText = document.getElementById("editorReplyText").value.trim();
+  const accountId = document.getElementById("editorAccount").value;
+  const resEl     = document.getElementById("editorSendResult");
+
+  if (!postUrl)   { alert("請填入貼文連結（Extension 需要知道去哪回覆）"); return; }
+  if (!replyText) { alert("請先生成或輸入回覆內容"); return; }
+
+  const btn = document.getElementById("btnSendReply");
+  btn.disabled = true; btn.textContent = "發送中…";
+  resEl.textContent = ""; resEl.className = "text-xs self-center";
+
+  try {
+    const res  = await fetch("/api/editor/send-reply", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id:   accountId,
+        post_url:     postUrl,
+        comment_author: document.getElementById("editorCommenter").value.trim(),
+        comment_text: document.getElementById("editorCommentText").value.trim(),
+        reply_text:   replyText,
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resEl.textContent = "✓ 任務已發送給 Extension";
+      resEl.className   = "text-xs self-center text-green-500";
+    } else {
+      resEl.textContent = "失敗：" + data.error;
+      resEl.className   = "text-xs self-center text-red-500";
+    }
+  } catch(e) {
+    resEl.textContent = "網路錯誤"; resEl.className = "text-xs self-center text-red-500";
+  }
+  btn.disabled = false; btn.textContent = "💬 送出回覆（扣 1 點）";
+}
+
 function clearEditorForm() {
-  ["editorPostText","editorCommenter","editorCommentText","editorProductTitle","editorProductUrl","editorReplyText"].forEach(id => {
-    document.getElementById(id).value = "";
+  ["editorPostText","editorPostUrl","editorCommenter","editorCommentText",
+   "editorProductTitle","editorProductUrl","editorReplyText"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
   });
   document.getElementById("editorReplyResult").classList.add("hidden");
+  document.getElementById("editorSendResult").textContent = "";
 }
 
 async function genBatchEditorReplies() {
