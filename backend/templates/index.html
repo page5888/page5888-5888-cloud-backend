@@ -333,51 +333,24 @@
     <div id="tabEditor" class="hidden space-y-4">
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <h2 class="font-semibold text-gray-700 mb-1">💬 AI 小編回覆</h2>
-        <p class="text-sm text-gray-400 mb-5">把別人留在你貼文下的留言貼進來，AI 幫你用品牌口吻生成回覆</p>
+        <p class="text-sm text-gray-400 mb-5">把留言貼進來，AI 用品牌口吻生成回覆，一鍵透過 Extension 送出</p>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="space-y-3 mb-4">
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">使用帳號（人設來源）</label>
+            <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
             <select id="editorAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
           </div>
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">留言者 @帳號名</label>
-            <input id="editorCommenter" type="text" placeholder="例：user123"
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-          </div>
-          <div class="md:col-span-2">
-            <label class="text-xs text-gray-500 mb-1 block">你的貼文連結（Extension 送出用）</label>
+            <label class="text-xs text-gray-500 mb-1 block">貼文連結（Extension 送出用）</label>
             <input id="editorPostUrl" type="text" placeholder="https://www.threads.net/@帳號/post/..."
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
           </div>
-          <div class="md:col-span-2">
-            <label class="text-xs text-gray-500 mb-1 block">你的貼文內容（摘要即可）</label>
-            <textarea id="editorPostText" rows="2" placeholder="例：今天分享花蓮電子鎖安裝心得…"
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
-          </div>
-          <div class="md:col-span-2">
-            <label class="text-xs text-gray-500 mb-1 block">對方的留言內容</label>
+          <div>
+            <label class="text-xs text-gray-500 mb-1 block">對方的留言</label>
             <textarea id="editorCommentText" rows="3" placeholder="把對方的留言文字貼進來"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
           </div>
         </div>
-
-        <!-- 選填：商品資訊 -->
-        <details class="mb-4">
-          <summary class="text-xs text-gray-400 cursor-pointer select-none hover:text-gray-600">＋ 選填：商品資訊（若留言與商品有關可帶入）</summary>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-            <div>
-              <label class="text-xs text-gray-500 mb-1 block">商品名稱</label>
-              <input id="editorProductTitle" type="text" placeholder="例：感應卡電子鎖"
-                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-            </div>
-            <div>
-              <label class="text-xs text-gray-500 mb-1 block">商品連結</label>
-              <input id="editorProductUrl" type="text" placeholder="https://shopee.tw/..."
-                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-            </div>
-          </div>
-        </details>
 
         <button onclick="genEditorReply()" id="btnEditorReply"
           class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
@@ -394,7 +367,7 @@
               class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
               💬 送出回覆（扣 1 點）
             </button>
-            <button onclick="copyEditorReply()" id="btnCopyReply"
+            <button onclick="copyEditorReply()"
               class="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
               📋 複製
             </button>
@@ -411,19 +384,14 @@
       <!-- 批次模式 -->
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <h3 class="font-medium text-gray-700 mb-1">📋 批次回覆（多則留言）</h3>
-        <p class="text-sm text-gray-400 mb-4">一次輸入多則留言，AI 逐一生成回覆，方便批量處理互動</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <p class="text-sm text-gray-400 mb-4">一次輸入多則留言，AI 逐一生成回覆</p>
+        <div class="space-y-3 mb-4">
           <div>
             <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
             <select id="editorBatchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
           </div>
           <div>
-            <label class="text-xs text-gray-500 mb-1 block">你的貼文摘要</label>
-            <input id="editorBatchPostText" type="text" placeholder="例：電子鎖安裝心得"
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-          </div>
-          <div class="md:col-span-2">
-            <label class="text-xs text-gray-500 mb-1 block">留言列表（每行格式：@帳號 留言內容）</label>
+            <label class="text-xs text-gray-500 mb-1 block">留言列表（每行一則，格式：@帳號 留言內容）</label>
             <textarea id="editorBatchComments" rows="5"
               placeholder="@user1 請問這個有保固嗎&#10;@user2 在哪裡可以預約&#10;@user3 價格怎麼算"
               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono resize-none"></textarea>
@@ -1330,12 +1298,8 @@ async function copyReferralLink() {
 // ── AI 小編回覆 ──────────────────────────────────────────────────────────────
 
 async function genEditorReply() {
-  const accountId    = document.getElementById("editorAccount").value;
-  const postText     = document.getElementById("editorPostText").value.trim();
-  const commenter    = document.getElementById("editorCommenter").value.trim();
-  const commentText  = document.getElementById("editorCommentText").value.trim();
-  const productTitle = document.getElementById("editorProductTitle").value.trim();
-  const productUrl   = document.getElementById("editorProductUrl").value.trim();
+  const accountId   = document.getElementById("editorAccount").value;
+  const commentText = document.getElementById("editorCommentText").value.trim();
 
   if (!accountId)   { alert("請選擇帳號"); return; }
   if (!commentText) { alert("請輸入對方的留言內容"); return; }
@@ -1347,9 +1311,7 @@ async function genEditorReply() {
     const res  = await fetch("/api/ai/editor-reply", {
       method: "POST", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
-        account_id: accountId, post_text: postText,
-        comment_author: commenter, comment_text: commentText,
-        product_title: productTitle, product_url: productUrl,
+        account_id: accountId, comment_text: commentText,
       }),
     });
     const data = await res.json();
@@ -1391,7 +1353,6 @@ async function sendEditorReply() {
       body: JSON.stringify({
         account_id:   accountId,
         post_url:     postUrl,
-        comment_author: document.getElementById("editorCommenter").value.trim(),
         comment_text: document.getElementById("editorCommentText").value.trim(),
         reply_text:   replyText,
       }),
@@ -1411,8 +1372,7 @@ async function sendEditorReply() {
 }
 
 function clearEditorForm() {
-  ["editorPostText","editorPostUrl","editorCommenter","editorCommentText",
-   "editorProductTitle","editorProductUrl","editorReplyText"].forEach(id => {
+  ["editorPostUrl","editorCommentText","editorReplyText"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = "";
   });
@@ -1422,7 +1382,6 @@ function clearEditorForm() {
 
 async function genBatchEditorReplies() {
   const accountId = document.getElementById("editorBatchAccount").value;
-  const postText  = document.getElementById("editorBatchPostText").value.trim();
   const rawLines  = document.getElementById("editorBatchComments").value.trim().split("\n").filter(Boolean);
 
   if (!accountId)       { alert("請選擇帳號"); return; }
@@ -1445,7 +1404,7 @@ async function genBatchEditorReplies() {
       const res  = await fetch("/api/ai/editor-reply", {
         method: "POST", headers: {"Content-Type":"application/json"},
         body: JSON.stringify({
-          account_id: accountId, post_text: postText,
+          account_id: accountId,
           comment_author: c.author, comment_text: c.text,
         }),
       });

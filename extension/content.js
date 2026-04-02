@@ -31,14 +31,25 @@ async function doScrape({ keyword }) {
     const posts = [];
     const seen = new Set();
 
-    document.querySelectorAll("article, [data-pressable-container]").forEach(el => {
-      const link = el.querySelector("a[href*='/post/']")?.href;
+    // 找頁面上所有貼文連結，往上找容器抓文字
+    document.querySelectorAll("a[href*='/post/']").forEach(a => {
+      const link = a.href.split("?")[0]; // 去掉 query string
       if (!link || seen.has(link)) return;
       seen.add(link);
-      const text = el.innerText?.trim().slice(0, 300);
-      if (text) posts.push({ text, link });
+
+      // 往上找有文字內容的容器（最多爬 8 層）
+      let el = a.parentElement;
+      let text = "";
+      for (let i = 0; i < 8 && el; i++) {
+        const t = el.innerText?.trim();
+        if (t && t.length > 20) { text = t.slice(0, 300); break; }
+        el = el.parentElement;
+      }
+      if (!text) text = a.innerText?.trim().slice(0, 300) || link;
+      posts.push({ text, link });
     });
 
+    // 如果完全找不到，回傳成功但 0 篇，讓後端決定
     return { success: true, posts, detail: `搜尋「${keyword}」找到 ${posts.length} 篇` };
   } catch (e) {
     return { success: false, detail: e.message };
