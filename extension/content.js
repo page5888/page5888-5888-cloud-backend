@@ -17,12 +17,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function handleAction(msg) {
   switch (msg.action) {
-    case "comment":         return await doComment(msg.payload);
-    case "reply_comment":   return await doReplyComment(msg.payload);
+    // comment / reply_comment / post 已改由 background.js 直接用 executeScript 處理
+    // 不再透過 sendMessage → content.js，避免頁面跳轉導致 channel closed 錯誤
     case "scrape":          return await doScrape(msg.payload);
     case "scrape_posts":    return await doScrapePosts();
     case "scrape_comments": return await doScrapeComments(msg.payload);
-    case "post":            return await doPost(msg.payload);
     default:                return { success: false, detail: `未知動作: ${msg.action}` };
   }
 }
