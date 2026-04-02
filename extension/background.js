@@ -243,6 +243,101 @@ async function executeTask(task) {
     return r?.[0]?.result;
   }
 
+  // ── 共用：隨機 sleep（移植桌機板 random.uniform） ───────────────────────────
+  const sleepR = (min, max) => sleep(min + Math.floor(Math.random() * (max - min)));
+
+  // ── 共用：找可見輸入框（移植桌機板多策略） ──────────────────────────────────
+  // 回傳 true 表示找到且可見
+  async function findInputVisible(tabId) {
+    return execSync(tabId, () => {
+      // 策略 1：標準 contenteditable textbox
+      const ce = document.querySelector('[contenteditable="true"][role="textbox"]')
+              || document.querySelector('[contenteditable="true"]');
+      if (ce) { const r = ce.getBoundingClientRect(); if (r.width > 30 && r.height > 5) return true; }
+      // 策略 2：textarea / input with reply-related placeholder（桌機板原版）
+      const phs = ['留言', 'comment', '回覆', 'Reply', 'Add'];
+      for (const tag of ['input', 'textarea', 'div', 'span']) {
+        for (const el of document.querySelectorAll(tag)) {
+          const ph = el.getAttribute('placeholder') || el.getAttribute('aria-placeholder') || '';
+          if (phs.some(p => ph.toLowerCase().includes(p.toLowerCase()))) {
+            const r = el.getBoundingClientRect();
+            if (r.width > 30 && r.height > 5) { el.click(); return true; }
+          }
+        }
+      }
+      return false;
+    });
+  }
+
+  // ── 共用：點留言按鈕（移植桌機板四策略） ────────────────────────────────────
+  async function clickReplyBtn(tabId) {
+    return execSync(tabId, () => {
+      // 策略 1：aria-label
+      for (const sel of ['[aria-label*="Reply"]','[aria-label*="留言"]','[aria-label*="回覆"]']) {
+        const el = document.querySelector(sel);
+        if (el) { el.click(); return true; }
+      }
+      // 策略 2：innerText 完全符合（桌機板原版）
+      const byText = [...document.querySelectorAll('[role="button"],button,span,div')].find(el => {
+        const t = el.innerText?.trim();
+        const r = el.getBoundingClientRect();
+        return (t === 'Reply' || t === '留言' || t === '回覆') && r.width > 10 && r.height > 5;
+      });
+      if (byText) { byText.click(); return true; }
+      // 策略 3：底部固定列可點元素（手機版 UI，移植桌機板 vh*0.55 判斷）
+      window.scrollTo(0, document.body.scrollHeight);
+      const vh = window.innerHeight;
+      const bottomEl = [...document.querySelectorAll('[role="button"],button,input,textarea,[contenteditable]')]
+        .find(el => { const r = el.getBoundingClientRect(); return r.top > vh * 0.55 && r.width > 30 && r.height > 5; });
+      if (bottomEl) { bottomEl.click(); return true; }
+      // 策略 4：article 裡帶 SVG 的 role=button（桌機板電腦版邏輯）
+      const article = document.querySelector('article,[role="article"],[data-pressable-container]');
+      if (article) {
+        const svgBtn = [...article.querySelectorAll('[role="button"]')]
+          .find(el => { const r = el.getBoundingClientRect(); return el.querySelector('svg') && r.width < 120 && r.width > 5; });
+        if (svgBtn) { svgBtn.click(); return true; }
+      }
+      return false;
+    });
+  }
+
+  // ── 共用：找送出按鈕（移植桌機板 role=button 精確文字，排除 aria-hidden） ───
+  async function clickSubmitBtn(tabId) {
+    return execSync(tabId, () => {
+      const targets = ['發佈', 'Post', '張貼'];
+      // 從 input 往上找（避免點到頁面其他地方）
+      const input = document.querySelector('[contenteditable="true"]');
+      let root = input;
+      for (let i = 0; i < 12 && root; i++) {
+        const btn = [...root.querySelectorAll('[role="button"],button')].find(el => {
+          const t = (el.textContent || '').trim();
+          return targets.includes(t) && !el.closest('[aria-hidden="true"]') && !el.disabled;
+        });
+        if (btn) { btn.click(); return true; }
+        root = root.parentElement;
+      }
+      // Fallback：aria-label
+      const fb = document.querySelector('[aria-label="Post"],[aria-label="發佈"],[aria-label="張貼"]');
+      if (fb) { fb.click(); return true; }
+      return false;
+    });
+  }
+
+  // ── 共用：輸入文字（selectAll + insertText，清空後插入） ────────────────────
+  async function typeText(tabId, txt) {
+    return execSync(tabId, (text) => {
+      const input =
+        document.querySelector('[contenteditable="true"][role="textbox"]') ||
+        document.querySelector('[contenteditable="true"]') ||
+        document.querySelector('textarea');
+      if (!input) return false;
+      input.focus();
+      document.execCommand("selectAll", false);
+      document.execCommand("insertText", false, text);
+      return (input.textContent || input.value || "").trim().length > 0;
+    }, [txt]);
+  }
+
   // ── 留言任務 ─────────────────────────────────────────────────────────────────
   if (task.type === "comment") {
     const { post_url, comment_text } = payload;
@@ -252,58 +347,27 @@ async function executeTask(task) {
       commentTabId = tab.id;
       await sleep(9000); // 等頁面完整渲染
 
-      // 步驟 1：點 Reply 開留言框（廣泛選擇器）
-      await execSync(commentTabId, () => {
-        const btn =
-          document.querySelector('[aria-label*="Reply"]') ||
-          document.querySelector('[aria-label*="留言"]') ||
-          document.querySelector('[aria-label*="回覆"]') ||
-          [...document.querySelectorAll("span,div")].find(el =>
-            /^(Reply|留言|回覆)$/.test(el.innerText?.trim()) && el.role !== "none"
-          );
-        if (btn) btn.click();
-        return !!btn;
-      });
-      await sleep(1500); // 等留言框展開動畫
+      // 步驟 1：點 Reply 按鈕（4 種策略）
+      await clickReplyBtn(commentTabId);
+      await sleepR(1200, 2000);
 
-      // 步驟 2：找輸入框並輸入文字（模擬人工輸入）
-      const typed = await execSync(commentTabId, (txt) => {
-        const input =
-          document.querySelector('[contenteditable="true"][role="textbox"]') ||
-          document.querySelector('[contenteditable="true"]') ||
-          document.querySelector('textarea[placeholder*="Reply"]') ||
-          document.querySelector('textarea');
-        if (!input) return false;
-        input.focus();
-        // 清空再輸入，避免疊字
-        const sel = window.getSelection();
-        if (sel) { sel.selectAllChildren(input); sel.collapseToEnd(); }
-        document.execCommand("insertText", false, txt);
-        return !!input.innerText?.trim();
-      }, [comment_text]);
-      if (!typed) { await reportDone(task.id, task.type, false, "找不到留言輸入框"); return; }
-      await sleep(1000);
+      // 步驟 2：等輸入框出現（最多重試 4 次，移植桌機板 polling 邏輯）
+      let inputReady = false;
+      for (let i = 0; i < 4; i++) {
+        inputReady = await findInputVisible(commentTabId);
+        if (inputReady) break;
+        await sleep(1000);
+      }
+      if (!inputReady) { await reportDone(task.id, task.type, false, "找不到留言輸入框"); return; }
 
-      // 步驟 3：找送出按鈕（從 input 往上找，避免誤點追蹤按鈕）
-      const submitted = await execSync(commentTabId, () => {
-        const input = document.querySelector('[contenteditable="true"][role="textbox"]')
-                   || document.querySelector('[contenteditable="true"]');
-        let el = input, btn = null;
-        for (let i = 0; i < 10 && el && !btn; i++) {
-          btn = [...el.querySelectorAll("button")].find(b =>
-            /Post|發布|張貼|Reply|回覆/i.test(b.innerText?.trim()) &&
-            !b.disabled
-          );
-          el = el.parentElement;
-        }
-        if (!btn) {
-          btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
-        }
-        if (!btn) return false;
-        btn.click();
-        return true;
-      });
-      await sleep(2000); // 等送出完成
+      // 步驟 3：輸入文字
+      const typed = await typeText(commentTabId, comment_text);
+      if (!typed) { await reportDone(task.id, task.type, false, "文字無法輸入到留言框"); return; }
+      await sleepR(800, 1400);
+
+      // 步驟 4：送出（role=button 精確文字，移植桌機板）
+      const submitted = await clickSubmitBtn(commentTabId);
+      await sleepR(1800, 2500);
 
       if (submitted) {
         notify("✅ 留言完成", comment_text.slice(0, 50));
@@ -330,59 +394,52 @@ async function executeTask(task) {
       replyTabId = tab.id;
       await sleep(9000);
 
-      // 步驟 1：找目標留言的 Reply 按鈕並點擊
+      // 步驟 1：找目標留言的 Reply 按鈕（移植桌機板：先找 author，再點其中的 role=button SVG）
       await execSync(replyTabId, (author, hint) => {
         const authorLower = (author || "").toLowerCase().replace(/^@/, "");
         const hintLower   = (hint || "").slice(0, 30).toLowerCase();
         let targetEl = null;
-        for (const el of document.querySelectorAll("article, [role='article'], div[tabindex]")) {
-          const text = el.innerText?.toLowerCase() || "";
+        for (const el of document.querySelectorAll("article,[role='article'],[data-pressable-container]")) {
+          const text = (el.innerText || "").toLowerCase();
           if (authorLower && text.includes(authorLower)) {
             if (!hintLower || text.includes(hintLower)) { targetEl = el; break; }
             if (!targetEl) targetEl = el;
           }
         }
-        const btn = targetEl
-          ? [...targetEl.querySelectorAll("button, span[role='button']")].find(b => /Reply|回覆/i.test(b.innerText))
-          : document.querySelector('[aria-label*="Reply"], [aria-label*="留言"]');
-        if (btn) btn.click();
-        return true;
-      }, [comment_author, comment_text_hint]);
-      await sleep(1500);
-
-      // 步驟 2：輸入回覆文字
-      const typed = await execSync(replyTabId, (txt) => {
-        const input =
-          document.querySelector('[contenteditable="true"][role="textbox"]') ||
-          document.querySelector('[contenteditable="true"]') ||
-          document.querySelector('textarea');
-        if (!input) return false;
-        input.focus();
-        const sel = window.getSelection();
-        if (sel) { sel.selectAllChildren(input); sel.collapseToEnd(); }
-        document.execCommand("insertText", false, txt);
-        return !!input.innerText?.trim();
-      }, [reply_text]);
-      if (!typed) { await reportDone(task.id, task.type, false, "找不到回覆輸入框"); return; }
-      await sleep(1000);
-
-      // 步驟 3：送出
-      const submitted = await execSync(replyTabId, () => {
-        const input = document.querySelector('[contenteditable="true"][role="textbox"]')
-                   || document.querySelector('[contenteditable="true"]');
-        let el = input, btn = null;
-        for (let i = 0; i < 10 && el && !btn; i++) {
-          btn = [...el.querySelectorAll("button")].find(b =>
-            /Post|發布|張貼|Reply|回覆/i.test(b.innerText?.trim()) && !b.disabled
-          );
-          el = el.parentElement;
+        if (targetEl) {
+          // 找 role=button 帶 SVG 的（桌機板電腦版邏輯）
+          const svgBtn = [...targetEl.querySelectorAll('[role="button"]')]
+            .find(el => { const r = el.getBoundingClientRect(); return el.querySelector('svg') && r.width < 120 && r.width > 5; });
+          if (svgBtn) { svgBtn.click(); return true; }
+          // 或找文字符合的按鈕
+          const textBtn = [...targetEl.querySelectorAll('[role="button"],button')]
+            .find(b => /Reply|回覆/i.test(b.innerText));
+          if (textBtn) { textBtn.click(); return true; }
         }
-        if (!btn) btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
-        if (!btn) return false;
-        btn.click();
-        return true;
-      });
-      await sleep(2000);
+        // Fallback：aria-label
+        const fb = document.querySelector('[aria-label*="Reply"],[aria-label*="留言"]');
+        if (fb) { fb.click(); return true; }
+        return false;
+      }, [comment_author, comment_text_hint]);
+      await sleepR(1200, 2000);
+
+      // 步驟 2：等輸入框出現
+      let inputReady = false;
+      for (let i = 0; i < 4; i++) {
+        inputReady = await findInputVisible(replyTabId);
+        if (inputReady) break;
+        await sleep(1000);
+      }
+      if (!inputReady) { await reportDone(task.id, task.type, false, "找不到回覆輸入框"); return; }
+
+      // 步驟 3：輸入文字
+      const typed = await typeText(replyTabId, reply_text);
+      if (!typed) { await reportDone(task.id, task.type, false, "文字無法輸入到回覆框"); return; }
+      await sleepR(800, 1400);
+
+      // 步驟 4：送出
+      const submitted = await clickSubmitBtn(replyTabId);
+      await sleepR(1800, 2500);
 
       if (submitted) {
         notify("✅ 回覆完成", reply_text.slice(0, 50));
