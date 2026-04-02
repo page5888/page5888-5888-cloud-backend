@@ -25,6 +25,8 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")   # 你的 Google 帳號 email
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "5888cloud-secret-change-me")
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = True
 
 # ── CORS（允許 Chrome Extension 跨域帶 Cookie） ────────────────────────────────
 def _is_allowed_origin(origin):
