@@ -69,83 +69,36 @@ async function executeTask(task) {
     return tab.id;
   }
 
-  // ── 共用：開新分頁並等待載入完成（附超時保護）──────────────────────────────
-  async function openTabAndWait(url, extraMs) {
-    const tab = await chrome.tabs.create({ url, active: false });
-    const tabId = tab.id;
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        chrome.tabs.onUpdated.removeListener(listener);
-        reject(new Error("頁面載入超時 (15s): " + url));
-      }, 15000);
-      function listener(id, info) {
-        if (id === tabId && info.status === "complete") {
-          clearTimeout(timer);
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolve();
-        }
-      }
-      chrome.tabs.onUpdated.addListener(listener);
-    });
-    await new Promise(r => setTimeout(r, extraMs || 3500));
-    return tabId;
-  }
+  // ── 共用：固定等待（ms） ────────────────────────────────────────────────────
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-  // ── 共用：導覽並等待載入（附超時保護）────────────────────────────────────────
+  // ── 共用：導覽並等待（不用 event listener，固定 sleep，MV3 更可靠） ──────────
   async function navAndWait(tabId, url, extraMs) {
-    await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        chrome.tabs.onUpdated.removeListener(listener);
-        reject(new Error("導覽超時 (15s): " + url));
-      }, 15000);
-      function listener(id, info) {
-        if (id === tabId && info.status === "complete") {
-          clearTimeout(timer);
-          chrome.tabs.onUpdated.removeListener(listener);
-          resolve();
-        }
-      }
-      chrome.tabs.onUpdated.addListener(listener);
-      chrome.tabs.update(tabId, { url });
-    });
-    await new Promise(r => setTimeout(r, extraMs || 3500));
+    await chrome.tabs.update(tabId, { url });
+    await sleep(extraMs || 5000);
   }
 
-  // ── 搜尋任務：用 executeScript 直接在頁面執行，不靠 sendMessage ─────────────
+  // ── 搜尋任務 ─────────────────────────────────────────────────────────────────
   if (task.type === "search") {
     const keyword   = payload.keyword || "";
     const searchUrl = `https://www.threads.net/search?q=${encodeURIComponent(keyword)}&serp_type=default`;
     let searchTabId;
 
     try {
-      console.log("[5888] 搜尋開新頁面", searchUrl);
-      searchTabId = await openTabAndWait(searchUrl, 4000);
-      console.log("[5888] 頁面載入完成，tabId=", searchTabId);
-    } catch(e) {
-      console.error("[5888] 開頁面失敗", e);
-      notify("❌ 搜尋失敗", "開頁面失敗: " + e.message);
-      await reportDone(task.id, task.type, false, "開頁面失敗: " + e.message, []);
-      return;
-    }
+      // 開新頁面 + 固定等 9 秒讓 SPA 渲染（不用 onUpdated listener）
+      const tab = await chrome.tabs.create({ url: searchUrl, active: false });
+      searchTabId = tab.id;
+      console.log("[5888] search tab:", searchTabId, searchUrl);
+      await sleep(9000);
 
-    try {
-      console.log("[5888] 執行 executeScript");
+      // 同步抓取（不用 async func，避免 Chrome 對 Promise return 的相容問題）
       const results = await chrome.scripting.executeScript({
         target: { tabId: searchTabId },
-        func: async (kw) => {
-          // 滾動觸發 lazy load
-          const sleep = ms => new Promise(r => setTimeout(r, ms));
-          window.scrollTo(0, 500); await sleep(700);
-          window.scrollTo(0, 1000); await sleep(500);
-          window.scrollTo(0, 0);
-
-          const posts = [];
-          const seen  = new Set();
-
+        func: (kw) => {
+          const posts = [], seen = new Set();
           const harvest = (a) => {
             const link = (a.href || "").split("?")[0];
             if (!link || seen.has(link)) return;
-            // 過濾 /t/ 短網址（至少 5 碼英數）
             if (link.includes("/t/") && !/\/t\/[A-Za-z0-9_-]{5,}$/.test(link)) return;
             seen.add(link);
             let el = a.parentElement, text = "";
@@ -156,11 +109,8 @@ async function executeTask(task) {
             }
             posts.push({ text: text || link, link });
           };
-
           document.querySelectorAll("a[href*='/post/']").forEach(harvest);
           document.querySelectorAll("a[href*='/t/']").forEach(harvest);
-
-          // 備援：role=link 元素
           if (posts.length === 0) {
             document.querySelectorAll("[role='link']").forEach(el => {
               const href = el.getAttribute("href") || "";
@@ -170,22 +120,20 @@ async function executeTask(task) {
               posts.push({ text: (el.innerText || "").trim().slice(0, 300) || full, link: full });
             });
           }
-
-          return { success: true, posts, detail: `搜尋「${kw}」找到 ${posts.length} 篇` };
+          return { posts, pageUrl: location.href, detail: `搜尋「${kw}」找到 ${posts.length} 篇` };
         },
         args: [keyword],
       });
 
-      console.log("[5888] executeScript 回傳", results);
       const r0 = results?.[0];
-      if (r0?.error) {
-        throw new Error("頁面執行錯誤: " + JSON.stringify(r0.error));
-      }
-      const result = r0?.result || { success: false, posts: [], detail: "頁面無回傳（result 為空）" };
-      notify(result.posts.length > 0 ? "✅ 搜尋完成" : "⚠️ 未找到貼文", result.detail);
-      await reportDone(task.id, task.type, result.success, result.detail, result.posts);
-    } catch (e) {
-      console.error("[5888] 搜尋 catch:", e);
+      console.log("[5888] search result:", r0?.result?.pageUrl, "posts:", r0?.result?.posts?.length, "error:", r0?.error);
+      if (r0?.error) throw new Error("注入錯誤: " + JSON.stringify(r0.error));
+      const res = r0?.result;
+      if (!res) throw new Error("executeScript 無回傳（可能頁面未載入）");
+      notify(res.posts.length > 0 ? "✅ 搜尋完成" : "⚠️ 未找到貼文（" + res.pageUrl?.slice(0,40) + "）", res.detail);
+      await reportDone(task.id, task.type, true, res.detail, res.posts);
+    } catch(e) {
+      console.error("[5888] search error:", e.name, e.message);
       notify("❌ 搜尋失敗", e.message.slice(0, 100));
       await reportDone(task.id, task.type, false, e.message, []);
     } finally {
