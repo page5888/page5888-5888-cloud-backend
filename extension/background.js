@@ -58,8 +58,75 @@ async function executeTask(task) {
   const payload = typeof task.payload === "string"
     ? JSON.parse(task.payload) : task.payload;
 
-  const actionLabel = { search: "搜尋", comment: "留言", reply_comment: "回覆留言", post: "發文" }[task.type] || task.type;
+  const actionLabel = { search: "搜尋", comment: "留言", reply_comment: "回覆留言", post: "發文", scan_inbox: "掃描留言" }[task.type] || task.type;
   notify("5888 小編助手", `正在執行${actionLabel}任務…`);
+
+  // ── 掃描個人頁留言（scan_inbox）────────────────────────────────────────────
+  if (task.type === "scan_inbox") {
+    const handle   = payload.handle || "";
+    const maxPosts = payload.max_posts || 5;
+    if (!handle) {
+      await reportDone(task.id, task.type, false, "缺少帳號 handle", [], []);
+      return;
+    }
+
+    const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*"] });
+    let tabId;
+    if (tabs.length > 0) {
+      tabId = tabs[0].id;
+    } else {
+      const tab = await chrome.tabs.create({ url: `https://www.threads.net/@${handle}`, active: false });
+      tabId = tab.id;
+    }
+
+    // 導覽到個人頁，抓貼文列表
+    const profileUrl = `https://www.threads.net/@${handle}`;
+    const loadPromise1 = waitForTabLoad(tabId);
+    chrome.tabs.update(tabId, { url: profileUrl });
+    await loadPromise1;
+    await new Promise(r => setTimeout(r, 3000));
+
+    try { await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }); } catch(e) {}
+    await new Promise(r => setTimeout(r, 300));
+
+    let postList = [];
+    try {
+      const r = await chrome.tabs.sendMessage(tabId, { action: "scrape_posts", payload: {} });
+      postList = (r?.posts || []).slice(0, maxPosts);
+    } catch(e) {
+      await reportDone(task.id, task.type, false, "抓貼文列表失敗: " + e.message, [], []);
+      return;
+    }
+
+    notify("5888 小編助手", `找到 ${postList.length} 篇貼文，開始掃描留言…`);
+
+    // 逐篇貼文，進去抓留言
+    const allInbox = [];
+    for (const post of postList) {
+      const loadPromise2 = waitForTabLoad(tabId);
+      chrome.tabs.update(tabId, { url: post.url });
+      await loadPromise2;
+      await new Promise(r => setTimeout(r, 2500));
+
+      try { await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }); } catch(e) {}
+      await new Promise(r => setTimeout(r, 300));
+
+      try {
+        const r = await chrome.tabs.sendMessage(tabId, {
+          action: "scrape_comments",
+          payload: { post_url: post.url, post_text: post.text }
+        });
+        if (r?.comments?.length) allInbox.push(...r.comments);
+      } catch(e) { /* 單篇失敗繼續 */ }
+    }
+
+    notify(allInbox.length > 0 ? "✅ 掃描完成" : "⚠️ 沒找到留言",
+           `掃描 ${postList.length} 篇，找到 ${allInbox.length} 則留言`);
+    await reportDone(task.id, task.type, true,
+                     `掃描 ${postList.length} 篇，找到 ${allInbox.length} 則留言`,
+                     [], allInbox);
+    return;
+  }
 
   // 搜尋任務：先導航到搜尋頁，等載入完再叫 content script 抓資料
   if (task.type === "search") {
@@ -127,13 +194,13 @@ async function executeTask(task) {
 }
 
 // ── 回報結果給雲端 ──────────────────────────────────────────────────────────
-async function reportDone(taskId, type, success, detail, posts = []) {
+async function reportDone(taskId, type, success, detail, posts = [], inbox = []) {
   try {
     await fetch(`${CLOUD_URL}/ext/done`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task_id: taskId, type, success, detail, posts }),
+      body: JSON.stringify({ task_id: taskId, type, success, detail, posts, inbox }),
     });
   } catch (e) {
     console.log("[5888] 回報失敗", e.message);

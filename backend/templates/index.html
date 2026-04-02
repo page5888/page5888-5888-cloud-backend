@@ -331,77 +331,55 @@
 
     <!-- ── 💬 小編回覆 ─────────────────────────────────────────────────────── -->
     <div id="tabEditor" class="hidden space-y-4">
-      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <h2 class="font-semibold text-gray-700 mb-1">💬 AI 小編回覆</h2>
-        <p class="text-sm text-gray-400 mb-5">把留言貼進來，AI 用品牌口吻生成回覆，一鍵透過 Extension 送出</p>
 
-        <div class="space-y-3 mb-4">
-          <div>
+      <!-- 操作列 -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <div class="flex flex-wrap items-end gap-3">
+          <div class="flex-1 min-w-36">
             <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
             <select id="editorAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
           </div>
-          <div>
-            <label class="text-xs text-gray-500 mb-1 block">貼文連結（Extension 送出用）</label>
-            <input id="editorPostUrl" type="text" placeholder="https://www.threads.net/@帳號/post/..."
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+          <div class="flex-1 min-w-36">
+            <label class="text-xs text-gray-500 mb-1 block">掃描幾篇貼文</label>
+            <select id="editorMaxPosts" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+              <option value="3">3 篇</option>
+              <option value="5" selected>5 篇</option>
+              <option value="10">10 篇</option>
+            </select>
           </div>
-          <div>
-            <label class="text-xs text-gray-500 mb-1 block">對方的留言</label>
-            <textarea id="editorCommentText" rows="3" placeholder="把對方的留言文字貼進來"
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
-          </div>
+          <button onclick="startInboxScan()" id="btnScan"
+            class="px-5 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition whitespace-nowrap">
+            📡 掃描我的留言
+          </button>
+          <span id="scanStatus" class="text-xs text-gray-400 self-center"></span>
         </div>
-
-        <button onclick="genEditorReply()" id="btnEditorReply"
-          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
-          ✨ AI 生成回覆
-        </button>
-
-        <!-- 結果 -->
-        <div id="editorReplyResult" class="mt-5 hidden">
-          <label class="text-xs text-gray-500 mb-2 block">AI 生成的回覆（可直接修改）</label>
-          <textarea id="editorReplyText" rows="4"
-            class="w-full border border-indigo-200 bg-indigo-50 rounded-xl px-4 py-3 text-sm resize-none focus:outline-none focus:border-indigo-400"></textarea>
-          <div class="flex gap-3 mt-3 flex-wrap items-center">
-            <button onclick="sendEditorReply()" id="btnSendReply"
-              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
-              💬 送出回覆（扣 1 點）
-            </button>
-            <button onclick="copyEditorReply()"
-              class="px-4 py-2 rounded-xl text-sm font-medium bg-teal-500 hover:bg-teal-600 text-white transition">
-              📋 複製
-            </button>
-            <span id="editorCopied" class="text-xs text-green-500 self-center hidden">已複製！</span>
-            <span id="editorSendResult" class="text-xs self-center"></span>
-            <button onclick="clearEditorForm()"
-              class="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 hover:bg-gray-200 text-gray-600 transition ml-auto">
-              清除
-            </button>
-          </div>
-        </div>
+        <p class="text-xs text-gray-400 mt-3">Extension 會自動掃描你最近 N 篇貼文的留言，掃完後顯示在下方，帳號 handle 需在帳號設定中填寫</p>
       </div>
 
-      <!-- 批次模式 -->
-      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-        <h3 class="font-medium text-gray-700 mb-1">📋 批次回覆（多則留言）</h3>
-        <p class="text-sm text-gray-400 mb-4">一次輸入多則留言，AI 逐一生成回覆</p>
-        <div class="space-y-3 mb-4">
-          <div>
-            <label class="text-xs text-gray-500 mb-1 block">使用帳號</label>
-            <select id="editorBatchAccount" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></select>
-          </div>
-          <div>
-            <label class="text-xs text-gray-500 mb-1 block">留言列表（每行一則，格式：@帳號 留言內容）</label>
-            <textarea id="editorBatchComments" rows="5"
-              placeholder="@user1 請問這個有保固嗎&#10;@user2 在哪裡可以預約&#10;@user3 價格怎麼算"
-              class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono resize-none"></textarea>
-          </div>
-        </div>
-        <button onclick="genBatchEditorReplies()" id="btnBatchReply"
-          class="px-6 py-2.5 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
-          ✨ 批次生成回覆
+      <!-- 批次操作列 -->
+      <div id="inboxActions" class="hidden bg-indigo-50 border border-indigo-100 rounded-2xl px-5 py-3 flex flex-wrap items-center gap-3">
+        <label class="flex items-center gap-2 text-sm text-indigo-700 cursor-pointer select-none">
+          <input type="checkbox" id="checkAll" onchange="toggleCheckAll(this.checked)" class="rounded">
+          全選
+        </label>
+        <span id="checkedCount" class="text-sm text-indigo-600 font-medium">已選 0 則</span>
+        <button onclick="genAllReplies()" id="btnGenAll"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+          ✨ AI 生成全部回覆
         </button>
-        <div id="batchReplyResults" class="mt-4 space-y-3"></div>
+        <button onclick="sendChecked()" id="btnSendChecked"
+          class="px-4 py-1.5 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition">
+          💬 發送已勾選（扣點）
+        </button>
+        <button onclick="clearInbox()" class="ml-auto text-xs text-gray-400 hover:text-red-400 transition">清除收件匣</button>
+      </div>
+
+      <!-- 收件匣列表 -->
+      <div id="inboxList" class="space-y-3"></div>
+
+      <!-- 空狀態 -->
+      <div id="inboxEmpty" class="bg-white rounded-2xl border border-gray-200 p-10 text-center text-gray-400 text-sm">
+        點擊「📡 掃描我的留言」，Extension 會自動抓取你貼文的留言
       </div>
     </div>
 
@@ -435,7 +413,9 @@
       <!-- 新增表單 -->
       <div id="addAccountForm" class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm hidden space-y-3">
         <h3 class="font-medium text-gray-700">新增 Threads 帳號</h3>
-        <input id="newAccName" type="text" placeholder="帳號名稱（例：彼得大叔 @0xspeter）"
+        <input id="newAccName" type="text" placeholder="帳號名稱（例：彼得大叔）"
+          class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
+        <input id="newAccHandle" type="text" placeholder="Threads @帳號名（例：0xspeter，不含 @，掃描留言必填）"
           class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
         <input id="newAccToken" type="password" placeholder="Threads API Token（選填，留空可存但不能發文）"
           class="w-full border border-gray-300 rounded-xl px-4 py-2 text-sm">
@@ -693,6 +673,7 @@ function switchTab(tab) {
   if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
   if (tab === "referral") loadReferral();
   if (tab === "patrol")   loadPatrolConfig();
+  if (tab === "editor")   loadInbox();
 }
 
 // ── 帳號 ─────────────────────────────────────────────────────────────────────
@@ -708,7 +689,7 @@ function fillAccountSelects() {
   const opts = userAccounts.length
     ? userAccounts.map(a => `<option value="${esc(a.id)}">${esc(a.name)}</option>`).join("")
     : '<option value="">（尚未設定帳號）</option>';
-  ["trendAccount","patrolAccount","batchAccount","promoAccount","editorAccount","editorBatchAccount"].forEach(id => {
+  ["trendAccount","patrolAccount","batchAccount","promoAccount","editorAccount"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = opts;
   });
@@ -722,10 +703,11 @@ function loadAccountList() {
     : userAccounts.map(a => `
       <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-center justify-between">
         <div>
-          <div class="text-sm font-medium text-gray-700">${esc(a.name)}</div>
+          <div class="text-sm font-medium text-gray-700">${esc(a.name)}${a.handle ? ` <span class="text-gray-400 font-normal">@${esc(a.handle)}</span>` : ""}</div>
           ${a.token_preview
             ? `<div class="text-xs text-gray-400 mt-0.5">Token: ${esc(a.token_preview)}</div>`
             : `<div class="text-xs text-red-400 mt-0.5">⚠️ 無 API Token，暫不能發文</div>`}
+          ${!a.handle ? `<div class="text-xs text-orange-400 mt-0.5">⚠️ 未填 handle，無法掃描留言</div>` : ""}
         </div>
         <button onclick="deleteAccount('${esc(a.id)}')" class="text-xs text-red-400 hover:text-red-600">刪除</button>
       </div>`
@@ -737,13 +719,14 @@ function hideAddAccount()  { document.getElementById("addAccountForm").classList
 
 async function saveNewAccount() {
   const name    = document.getElementById("newAccName").value.trim();
+  const handle  = document.getElementById("newAccHandle").value.trim().replace(/^@/, "");
   const token   = document.getElementById("newAccToken").value.trim();
   const gemini  = document.getElementById("newAccGemini").value.trim();
   const persona = document.getElementById("newAccPersona").value.trim();
   if (!name) { alert("帳號名稱為必填"); return; }
   const res  = await fetch("/api/accounts", {
     method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ name, access_token: token, gemini_key: gemini, persona }),
+    body: JSON.stringify({ name, handle, access_token: token, gemini_key: gemini, persona }),
   });
   const data = await res.json();
   if (data.success) { await loadAccounts(); hideAddAccount(); }
@@ -1295,145 +1278,239 @@ async function copyReferralLink() {
   } catch(e) { alert("複製失敗，請手動選取"); }
 }
 
-// ── AI 小編回覆 ──────────────────────────────────────────────────────────────
+// ── 小編回覆收件匣 ───────────────────────────────────────────────────────────
 
-async function genEditorReply() {
-  const accountId   = document.getElementById("editorAccount").value;
-  const commentText = document.getElementById("editorCommentText").value.trim();
+let _inboxItems = [];  // [{id, post_url, post_text, commenter, comment_text, reply_text}]
+let _scanTaskId = null;
+let _scanPollTimer = null;
 
-  if (!accountId)   { alert("請選擇帳號"); return; }
-  if (!commentText) { alert("請輸入對方的留言內容"); return; }
-
-  const btn = document.getElementById("btnEditorReply");
-  btn.disabled = true; btn.textContent = "生成中…";
-
-  try {
-    const res  = await fetch("/api/ai/editor-reply", {
-      method: "POST", headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({
-        account_id: accountId, comment_text: commentText,
-      }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      document.getElementById("editorReplyText").value = data.reply;
-      document.getElementById("editorReplyResult").classList.remove("hidden");
-    } else {
-      alert("AI 生成失敗：" + data.error);
-    }
-  } catch(e) { alert("網路錯誤"); }
-  finally { btn.disabled = false; btn.textContent = "✨ AI 生成回覆"; }
-}
-
-async function copyEditorReply() {
-  const text = document.getElementById("editorReplyText").value;
-  try {
-    await navigator.clipboard.writeText(text);
-    const el = document.getElementById("editorCopied");
-    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
-  } catch(e) { alert("複製失敗，請手動選取"); }
-}
-
-async function sendEditorReply() {
-  const postUrl   = document.getElementById("editorPostUrl").value.trim();
-  const replyText = document.getElementById("editorReplyText").value.trim();
+async function startInboxScan() {
   const accountId = document.getElementById("editorAccount").value;
-  const resEl     = document.getElementById("editorSendResult");
+  if (!accountId) { alert("請先選擇帳號"); return; }
+  const acc = userAccounts.find(a => a.id === accountId);
+  if (!acc?.handle) { alert("請先在「帳號設定」中填寫 Threads @帳號名（handle）再掃描"); return; }
 
-  if (!postUrl)   { alert("請填入貼文連結（Extension 需要知道去哪回覆）"); return; }
-  if (!replyText) { alert("請先生成或輸入回覆內容"); return; }
-
-  const btn = document.getElementById("btnSendReply");
-  btn.disabled = true; btn.textContent = "發送中…";
-  resEl.textContent = ""; resEl.className = "text-xs self-center";
+  const btn = document.getElementById("btnScan");
+  const statusEl = document.getElementById("scanStatus");
+  btn.disabled = true; btn.textContent = "掃描中…";
+  statusEl.textContent = "任務推送中，等待 Extension 執行…";
 
   try {
-    const res  = await fetch("/api/editor/send-reply", {
+    const res = await fetch("/api/editor/scan", {
       method: "POST", headers: {"Content-Type":"application/json"},
       body: JSON.stringify({
-        account_id:   accountId,
-        post_url:     postUrl,
-        comment_text: document.getElementById("editorCommentText").value.trim(),
-        reply_text:   replyText,
+        account_id: accountId,
+        handle: acc.handle,
+        max_posts: parseInt(document.getElementById("editorMaxPosts").value) || 5,
       }),
     });
     const data = await res.json();
-    if (data.success) {
-      resEl.textContent = "✓ 任務已發送給 Extension";
-      resEl.className   = "text-xs self-center text-green-500";
-    } else {
-      resEl.textContent = "失敗：" + data.error;
-      resEl.className   = "text-xs self-center text-red-500";
-    }
+    if (!data.success) { alert("推送失敗：" + data.error); btn.disabled = false; btn.textContent = "📡 掃描我的留言"; return; }
+    _scanTaskId = data.task_id;
+    statusEl.textContent = "Extension 掃描中，完成後自動更新…";
+    // 每 5 秒輪詢一次收件匣
+    clearInterval(_scanPollTimer);
+    _scanPollTimer = setInterval(pollInbox, 5000);
+    // 30 秒後停止輪詢
+    setTimeout(() => { clearInterval(_scanPollTimer); btn.disabled = false; btn.textContent = "📡 掃描我的留言"; }, 90000);
   } catch(e) {
-    resEl.textContent = "網路錯誤"; resEl.className = "text-xs self-center text-red-500";
+    alert("網路錯誤"); btn.disabled = false; btn.textContent = "📡 掃描我的留言";
   }
-  btn.disabled = false; btn.textContent = "💬 送出回覆（扣 1 點）";
 }
 
-function clearEditorForm() {
-  ["editorPostUrl","editorCommentText","editorReplyText"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-  document.getElementById("editorReplyResult").classList.add("hidden");
-  document.getElementById("editorSendResult").textContent = "";
+async function pollInbox() {
+  try {
+    const res  = await fetch("/api/editor/inbox");
+    const data = await res.json();
+    if (!data.success) return;
+    const items = data.items || [];
+    if (items.length !== _inboxItems.length || JSON.stringify(items.map(i=>i.id)) !== JSON.stringify(_inboxItems.map(i=>i.id))) {
+      _inboxItems = items;
+      renderInbox();
+      if (items.length > 0) {
+        clearInterval(_scanPollTimer);
+        const btn = document.getElementById("btnScan");
+        btn.disabled = false; btn.textContent = "📡 再次掃描";
+        document.getElementById("scanStatus").textContent = `找到 ${items.length} 則留言`;
+      }
+    }
+  } catch(e) {}
 }
 
-async function genBatchEditorReplies() {
-  const accountId = document.getElementById("editorBatchAccount").value;
-  const rawLines  = document.getElementById("editorBatchComments").value.trim().split("\n").filter(Boolean);
+async function loadInbox() {
+  try {
+    const res  = await fetch("/api/editor/inbox");
+    const data = await res.json();
+    _inboxItems = data.items || [];
+    renderInbox();
+  } catch(e) {}
+}
 
-  if (!accountId)       { alert("請選擇帳號"); return; }
-  if (!rawLines.length) { alert("請輸入留言列表"); return; }
+function renderInbox() {
+  const list  = document.getElementById("inboxList");
+  const empty = document.getElementById("inboxEmpty");
+  const actions = document.getElementById("inboxActions");
 
-  const btn = document.getElementById("btnBatchReply");
-  const box = document.getElementById("batchReplyResults");
+  if (!_inboxItems.length) {
+    list.innerHTML = ""; empty.classList.remove("hidden");
+    actions.classList.add("hidden"); return;
+  }
+  empty.classList.add("hidden");
+  actions.classList.remove("hidden");
+  updateCheckedCount();
+
+  list.innerHTML = _inboxItems.map((item, idx) => `
+    <div class="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm" id="inboxCard_${item.id}">
+      <div class="flex items-start gap-3">
+        <input type="checkbox" class="inbox-check mt-1 rounded" data-id="${item.id}" onchange="updateCheckedCount()">
+        <div class="flex-1 min-w-0">
+          <div class="text-xs text-gray-400 mb-1 truncate">
+            📌 <a href="${esc(item.post_url)}" target="_blank" class="hover:underline">${esc((item.post_text||item.post_url).slice(0,60))}…</a>
+          </div>
+          <div class="text-sm font-medium text-gray-700 mb-1">@${esc(item.commenter)}</div>
+          <div class="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2 mb-3">${esc(item.comment_text)}</div>
+          <textarea id="reply_${item.id}" rows="2" placeholder="回覆內容（可 AI 生成或自己打）"
+            class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm resize-none focus:border-indigo-300 focus:outline-none"
+          >${esc(item.reply_text || "")}</textarea>
+          <div class="flex gap-2 mt-2">
+            <button onclick="genOneReply(${item.id}, '${esc(item.post_text||"")}', '${esc(item.commenter)}', '${esc(item.comment_text)}')"
+              class="px-3 py-1 rounded-lg text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition">
+              ✨ AI 生成
+            </button>
+            <button onclick="sendOneReply(${item.id})"
+              class="px-3 py-1 rounded-lg text-xs font-medium bg-green-50 hover:bg-green-100 text-green-600 transition">
+              💬 發送（扣 1 點）
+            </button>
+            <span id="replyStatus_${item.id}" class="text-xs self-center text-gray-400"></span>
+          </div>
+        </div>
+      </div>
+    </div>`).join("");
+}
+
+function updateCheckedCount() {
+  const checked = [...document.querySelectorAll(".inbox-check:checked")];
+  document.getElementById("checkedCount").textContent = `已選 ${checked.length} 則`;
+}
+
+function toggleCheckAll(checked) {
+  document.querySelectorAll(".inbox-check").forEach(cb => { cb.checked = checked; });
+  updateCheckedCount();
+}
+
+async function genOneReply(inboxId, postText, commenter, commentText) {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請選擇帳號"); return; }
+  const statusEl = document.getElementById(`replyStatus_${inboxId}`);
+  statusEl.textContent = "生成中…";
+  try {
+    const res = await fetch("/api/editor/gen-reply", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ inbox_id: inboxId, account_id: accountId,
+        post_text: postText, commenter, comment_text: commentText }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById(`reply_${inboxId}`).value = data.reply;
+      // 更新本地資料
+      const item = _inboxItems.find(i => i.id === inboxId);
+      if (item) item.reply_text = data.reply;
+      statusEl.textContent = "";
+    } else {
+      statusEl.textContent = "生成失敗";
+    }
+  } catch(e) { statusEl.textContent = "網路錯誤"; }
+}
+
+async function genAllReplies() {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請選擇帳號"); return; }
+  const btn = document.getElementById("btnGenAll");
   btn.disabled = true; btn.textContent = "生成中…";
-  box.innerHTML = '<div class="text-sm text-indigo-500">AI 生成中，請稍候…</div>';
-
-  // 解析每行 "@帳號 留言內容"
-  const comments = rawLines.map(line => {
-    const m = line.match(/^@?(\S+)\s+([\s\S]+)$/);
-    return m ? { author: m[1], text: m[2].trim() } : { author: "", text: line.trim() };
-  });
-
-  const results = [];
-  for (const c of comments) {
-    try {
-      const res  = await fetch("/api/ai/editor-reply", {
-        method: "POST", headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({
-          account_id: accountId,
-          comment_author: c.author, comment_text: c.text,
-        }),
-      });
-      const data = await res.json();
-      results.push({ ...c, reply: data.success ? data.reply : "（生成失敗）", ok: data.success });
-    } catch(e) {
-      results.push({ ...c, reply: "（網路錯誤）", ok: false });
+  for (const item of _inboxItems) {
+    if (!item.reply_text) {
+      await genOneReply(item.id, item.post_text || "", item.commenter, item.comment_text);
     }
   }
-
-  box.innerHTML = results.map((r, i) => `
-    <div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
-      <div class="text-xs text-gray-500 mb-1">${r.author ? `@${esc(r.author)} ` : ""}「${esc(r.text.slice(0,60))}${r.text.length>60?'…':''}」</div>
-      <textarea id="batchReply_${i}" rows="2" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm resize-none ${r.ok?'':'bg-red-50 border-red-200'}">${esc(r.reply)}</textarea>
-      <button onclick="copyBatchReply(${i})" class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-teal-50 hover:bg-teal-100 text-teal-600 transition">
-        📋 複製
-      </button>
-      <span id="batchCopied_${i}" class="text-xs text-green-500 ml-2 hidden">已複製</span>
-    </div>`).join("");
-
-  btn.disabled = false; btn.textContent = "✨ 批次生成回覆";
+  btn.disabled = false; btn.textContent = "✨ AI 生成全部回覆";
 }
 
-async function copyBatchReply(idx) {
-  const text = document.getElementById(`batchReply_${idx}`).value;
+async function sendOneReply(inboxId) {
+  const item = _inboxItems.find(i => i.id === inboxId);
+  if (!item) return;
+  const replyText = document.getElementById(`reply_${inboxId}`).value.trim();
+  if (!replyText) { alert("請先輸入或生成回覆內容"); return; }
+  const accountId = document.getElementById("editorAccount").value;
+  const statusEl  = document.getElementById(`replyStatus_${inboxId}`);
+  statusEl.textContent = "發送中…";
   try {
-    await navigator.clipboard.writeText(text);
-    const el = document.getElementById(`batchCopied_${idx}`);
-    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+    const res = await fetch("/api/editor/send-replies", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        account_id: accountId,
+        items: [{ id: inboxId, post_url: item.post_url,
+                  commenter: item.commenter, comment_text: item.comment_text,
+                  reply_text: replyText }],
+      }),
+    });
+    const data = await res.json();
+    if (data.sent > 0) {
+      document.getElementById(`inboxCard_${inboxId}`)?.remove();
+      _inboxItems = _inboxItems.filter(i => i.id !== inboxId);
+      if (!_inboxItems.length) renderInbox();
+      else updateCheckedCount();
+    } else {
+      statusEl.textContent = "發送失敗（點數不足？）";
+    }
+  } catch(e) { statusEl.textContent = "網路錯誤"; }
+}
+
+async function sendChecked() {
+  const accountId = document.getElementById("editorAccount").value;
+  if (!accountId) { alert("請選擇帳號"); return; }
+  const checked = [...document.querySelectorAll(".inbox-check:checked")];
+  if (!checked.length) { alert("請先勾選要發送的留言"); return; }
+
+  const items = checked.map(cb => {
+    const id   = parseInt(cb.dataset.id);
+    const item = _inboxItems.find(i => i.id === id);
+    return item ? {
+      id,
+      post_url:     item.post_url,
+      commenter:    item.commenter,
+      comment_text: item.comment_text,
+      reply_text:   document.getElementById(`reply_${id}`)?.value?.trim() || item.reply_text,
+    } : null;
+  }).filter(Boolean).filter(i => i.reply_text);
+
+  if (!items.length) { alert("請先為勾選的留言輸入回覆內容"); return; }
+
+  const btn = document.getElementById("btnSendChecked");
+  btn.disabled = true; btn.textContent = "發送中…";
+  try {
+    const res = await fetch("/api/editor/send-replies", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: accountId, items }),
+    });
+    const data = await res.json();
+    alert(`✅ 已發送 ${data.sent} 則${data.failed > 0 ? `，${data.failed} 則失敗（點數不足？）` : ""}`);
+    // 移除已發送的卡片
+    items.slice(0, data.sent).forEach(i => {
+      document.getElementById(`inboxCard_${i.id}`)?.remove();
+      _inboxItems = _inboxItems.filter(x => x.id !== i.id);
+    });
+    if (!_inboxItems.length) renderInbox();
+    else updateCheckedCount();
+  } catch(e) { alert("網路錯誤"); }
+  btn.disabled = false; btn.textContent = "💬 發送已勾選（扣點）";
+}
+
+async function clearInbox() {
+  if (!confirm("確定要清除所有待回覆留言嗎？")) return;
+  try {
+    await fetch("/api/editor/clear-inbox", { method: "POST" });
+    _inboxItems = [];
+    renderInbox();
   } catch(e) {}
 }
 

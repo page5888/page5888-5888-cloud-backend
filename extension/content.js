@@ -17,11 +17,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function handleAction(msg) {
   switch (msg.action) {
-    case "comment":       return await doComment(msg.payload);
-    case "reply_comment": return await doReplyComment(msg.payload);
-    case "scrape":        return await doScrape(msg.payload);
-    case "post":          return await doPost(msg.payload);
-    default:              return { success: false, detail: `未知動作: ${msg.action}` };
+    case "comment":         return await doComment(msg.payload);
+    case "reply_comment":   return await doReplyComment(msg.payload);
+    case "scrape":          return await doScrape(msg.payload);
+    case "scrape_posts":    return await doScrapePosts();
+    case "scrape_comments": return await doScrapeComments(msg.payload);
+    case "post":            return await doPost(msg.payload);
+    default:                return { success: false, detail: `未知動作: ${msg.action}` };
   }
 }
 
@@ -53,6 +55,69 @@ async function doScrape({ keyword }) {
     return { success: true, posts, detail: `搜尋「${keyword}」找到 ${posts.length} 篇` };
   } catch (e) {
     return { success: false, detail: e.message };
+  }
+}
+
+// ── 抓個人頁所有貼文連結 ─────────────────────────────────────────────────────
+async function doScrapePosts() {
+  try {
+    const seen = new Set();
+    const posts = [];
+    document.querySelectorAll("a[href*='/post/']").forEach(a => {
+      const url = a.href.split("?")[0];
+      if (!url || seen.has(url)) return;
+      seen.add(url);
+      let el = a.parentElement;
+      let text = "";
+      for (let i = 0; i < 8 && el; i++) {
+        const t = el.innerText?.trim();
+        if (t && t.length > 20) { text = t.slice(0, 200); break; }
+        el = el.parentElement;
+      }
+      posts.push({ url, text: text || url });
+    });
+    return { success: true, posts };
+  } catch (e) {
+    return { success: false, detail: e.message, posts: [] };
+  }
+}
+
+// ── 抓貼文頁的留言 ───────────────────────────────────────────────────────────
+async function doScrapeComments({ post_url, post_text }) {
+  try {
+    const comments = [];
+    const seen = new Set();
+
+    // 找所有類 article 容器；第一個通常是貼文本體，跳過
+    const containers = [
+      ...document.querySelectorAll("article, [role='article'], [data-pressable-container]")
+    ];
+
+    containers.forEach((el, idx) => {
+      if (idx === 0) return; // 跳過貼文本體
+
+      // 找留言者：@xxx 連結
+      const profileLink = el.querySelector(
+        "a[href*='threads.net/@'], a[href^='/@'], a[href*='instagram.com/']"
+      );
+      const authorMatch = profileLink?.href?.match(/@([^/?#]+)/);
+      const commenter   = authorMatch ? authorMatch[1] : "";
+      if (!commenter) return;
+
+      // 留言文字：去掉開頭 commenter 名稱那行
+      let commentText = (el.innerText || "").trim();
+      commentText = commentText.replace(new RegExp(`^${commenter}\\s*\\n?`, "i"), "").trim();
+      commentText = commentText.split("\n").slice(0, 4).join(" ").slice(0, 200);
+
+      if (!commentText || seen.has(commenter + commentText)) return;
+      seen.add(commenter + commentText);
+
+      comments.push({ post_url, post_text: post_text || "", commenter, comment_text: commentText });
+    });
+
+    return { success: true, comments };
+  } catch (e) {
+    return { success: false, detail: e.message, comments: [] };
   }
 }
 
