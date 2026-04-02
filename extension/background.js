@@ -61,7 +61,95 @@ async function executeTask(task) {
   const actionLabel = { search: "搜尋", comment: "留言", reply_comment: "回覆留言", post: "發文", scan_inbox: "掃描留言" }[task.type] || task.type;
   notify("5888 小編助手", `正在執行${actionLabel}任務…`);
 
-  // ── 掃描個人頁留言（scan_inbox）────────────────────────────────────────────
+  // ── 共用：取得或建立 Threads 分頁 ──────────────────────────────────────────
+  async function getThreadsTab(initUrl) {
+    const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*"] });
+    if (tabs.length > 0) return tabs[0].id;
+    const tab = await chrome.tabs.create({ url: initUrl || "https://www.threads.net", active: false });
+    return tab.id;
+  }
+
+  // ── 共用：導覽並等待載入 ────────────────────────────────────────────────────
+  async function navAndWait(tabId, url, extraMs) {
+    await new Promise(resolve => {
+      function listener(id, info) {
+        if (id === tabId && info.status === "complete") {
+          chrome.tabs.onUpdated.removeListener(listener);
+          resolve();
+        }
+      }
+      chrome.tabs.onUpdated.addListener(listener);
+      chrome.tabs.update(tabId, { url });
+    });
+    await new Promise(r => setTimeout(r, extraMs || 3500));
+  }
+
+  // ── 搜尋任務：用 executeScript 直接在頁面執行，不靠 sendMessage ─────────────
+  if (task.type === "search") {
+    const keyword   = payload.keyword || "";
+    const searchUrl = `https://www.threads.net/search?q=${encodeURIComponent(keyword)}&serp_type=default`;
+    const tabId     = await getThreadsTab(searchUrl);
+
+    await navAndWait(tabId, searchUrl, 4000);
+
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: async (kw) => {
+          // 滾動觸發 lazy load
+          const sleep = ms => new Promise(r => setTimeout(r, ms));
+          window.scrollTo(0, 500); await sleep(700);
+          window.scrollTo(0, 1000); await sleep(500);
+          window.scrollTo(0, 0);
+
+          const posts = [];
+          const seen  = new Set();
+
+          const harvest = (a) => {
+            const link = (a.href || "").split("?")[0];
+            if (!link || seen.has(link)) return;
+            // 過濾 /t/ 短網址（至少 5 碼英數）
+            if (link.includes("/t/") && !/\/t\/[A-Za-z0-9_-]{5,}$/.test(link)) return;
+            seen.add(link);
+            let el = a.parentElement, text = "";
+            for (let i = 0; i < 10 && el; i++) {
+              const t = (el.innerText || "").trim();
+              if (t.length > 15) { text = t.slice(0, 300); break; }
+              el = el.parentElement;
+            }
+            posts.push({ text: text || link, link });
+          };
+
+          document.querySelectorAll("a[href*='/post/']").forEach(harvest);
+          document.querySelectorAll("a[href*='/t/']").forEach(harvest);
+
+          // 備援：role=link 元素
+          if (posts.length === 0) {
+            document.querySelectorAll("[role='link']").forEach(el => {
+              const href = el.getAttribute("href") || "";
+              if (!href || seen.has(href) || !/\/(post|t)\//.test(href)) return;
+              seen.add(href);
+              const full = href.startsWith("http") ? href : "https://www.threads.net" + href;
+              posts.push({ text: (el.innerText || "").trim().slice(0, 300) || full, link: full });
+            });
+          }
+
+          return { success: true, posts, detail: `搜尋「${kw}」找到 ${posts.length} 篇` };
+        },
+        args: [keyword],
+      });
+
+      const result = results?.[0]?.result || { success: false, posts: [], detail: "頁面無回傳" };
+      notify(result.posts.length > 0 ? "✅ 搜尋完成" : "⚠️ 未找到貼文", result.detail);
+      await reportDone(task.id, task.type, result.success, result.detail, result.posts);
+    } catch (e) {
+      notify("❌ 搜尋失敗", e.message);
+      await reportDone(task.id, task.type, false, e.message, []);
+    }
+    return;
+  }
+
+  // ── 掃描個人頁留言（scan_inbox）：同樣用 executeScript ──────────────────────
   if (task.type === "scan_inbox") {
     const handle   = payload.handle || "";
     const maxPosts = payload.max_posts || 5;
@@ -70,53 +158,71 @@ async function executeTask(task) {
       return;
     }
 
-    const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*"] });
-    let tabId;
-    if (tabs.length > 0) {
-      tabId = tabs[0].id;
-    } else {
-      const tab = await chrome.tabs.create({ url: `https://www.threads.net/@${handle}`, active: false });
-      tabId = tab.id;
-    }
+    const tabId = await getThreadsTab(`https://www.threads.net/@${handle}`);
+    await navAndWait(tabId, `https://www.threads.net/@${handle}`, 3500);
 
-    // 導覽到個人頁，抓貼文列表
-    const profileUrl = `https://www.threads.net/@${handle}`;
-    const loadPromise1 = waitForTabLoad(tabId);
-    chrome.tabs.update(tabId, { url: profileUrl });
-    await loadPromise1;
-    await new Promise(r => setTimeout(r, 3000));
-
-    try { await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }); } catch(e) {}
-    await new Promise(r => setTimeout(r, 300));
-
+    // 抓貼文列表
     let postList = [];
     try {
-      const r = await chrome.tabs.sendMessage(tabId, { action: "scrape_posts", payload: {} });
-      postList = (r?.posts || []).slice(0, maxPosts);
+      const r = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: (max) => {
+          const seen = new Set(), posts = [];
+          document.querySelectorAll("a[href*='/post/'], a[href*='/t/']").forEach(a => {
+            const url = (a.href || "").split("?")[0];
+            if (!url || seen.has(url)) return;
+            if (url.includes("/t/") && !/\/t\/[A-Za-z0-9_-]{5,}$/.test(url)) return;
+            seen.add(url);
+            let el = a.parentElement, text = "";
+            for (let i = 0; i < 8 && el; i++) {
+              const t = (el.innerText || "").trim();
+              if (t.length > 15) { text = t.slice(0, 200); break; }
+              el = el.parentElement;
+            }
+            posts.push({ url, text: text || url });
+          });
+          return posts.slice(0, max);
+        },
+        args: [maxPosts],
+      });
+      postList = r?.[0]?.result || [];
     } catch(e) {
-      await reportDone(task.id, task.type, false, "抓貼文列表失敗: " + e.message, [], []);
+      await reportDone(task.id, task.type, false, "抓貼文失敗: " + e.message, [], []);
       return;
     }
 
-    notify("5888 小編助手", `找到 ${postList.length} 篇貼文，開始掃描留言…`);
+    notify("5888 小編助手", `找到 ${postList.length} 篇，掃描留言中…`);
 
-    // 逐篇貼文，進去抓留言
     const allInbox = [];
     for (const post of postList) {
-      const loadPromise2 = waitForTabLoad(tabId);
-      chrome.tabs.update(tabId, { url: post.url });
-      await loadPromise2;
-      await new Promise(r => setTimeout(r, 2500));
-
-      try { await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] }); } catch(e) {}
-      await new Promise(r => setTimeout(r, 300));
-
+      await navAndWait(tabId, post.url, 3000);
       try {
-        const r = await chrome.tabs.sendMessage(tabId, {
-          action: "scrape_comments",
-          payload: { post_url: post.url, post_text: post.text }
+        const r = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: (postUrl, postText) => {
+            const comments = [], seen = new Set();
+            const containers = [...document.querySelectorAll(
+              "article, [role='article'], [data-pressable-container]"
+            )];
+            containers.forEach((el, idx) => {
+              if (idx === 0) return;
+              const profileLink = el.querySelector("a[href*='/@'], a[href*='threads.net/@']");
+              const m = (profileLink?.href || "").match(/@([^/?#]+)/);
+              const commenter = m ? m[1] : "";
+              if (!commenter) return;
+              let commentText = (el.innerText || "").trim()
+                .replace(new RegExp(`^${commenter}\\s*\\n?`, "i"), "").trim()
+                .split("\n").slice(0, 4).join(" ").slice(0, 200);
+              if (!commentText || seen.has(commenter + commentText)) return;
+              seen.add(commenter + commentText);
+              comments.push({ post_url: postUrl, post_text: postText, commenter, comment_text: commentText });
+            });
+            return comments;
+          },
+          args: [post.url, post.text],
         });
-        if (r?.comments?.length) allInbox.push(...r.comments);
+        const comments = r?.[0]?.result || [];
+        allInbox.push(...comments);
       } catch(e) { /* 單篇失敗繼續 */ }
     }
 
@@ -125,43 +231,6 @@ async function executeTask(task) {
     await reportDone(task.id, task.type, true,
                      `掃描 ${postList.length} 篇，找到 ${allInbox.length} 則留言`,
                      [], allInbox);
-    return;
-  }
-
-  // 搜尋任務：先導航到搜尋頁，等載入完再叫 content script 抓資料
-  if (task.type === "search") {
-    const keyword = payload.keyword || "";
-    const searchUrl = `https://www.threads.net/search?q=${encodeURIComponent(keyword)}&serp_type=default`;
-
-    const tabs = await chrome.tabs.query({ url: ["*://www.threads.net/*", "*://threads.net/*"] });
-    let tabId;
-    if (tabs.length > 0) {
-      tabId = tabs[0].id;
-    } else {
-      const tab = await chrome.tabs.create({ url: searchUrl, active: false });
-      tabId = tab.id;
-    }
-
-    const loadPromise = waitForTabLoad(tabId);
-    chrome.tabs.update(tabId, { url: searchUrl });
-    await loadPromise;
-    await new Promise(r => setTimeout(r, 4500)); // 等 React 渲染（Threads 較慢）
-
-    // 手動注入 content.js（確保背景分頁也有注入）
-    try {
-      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-      await new Promise(r => setTimeout(r, 300));
-    } catch(e) { /* 已注入則忽略 */ }
-
-    try {
-      const result = await chrome.tabs.sendMessage(tabId, { action: "scrape", payload: { keyword } });
-      const ok = result?.success ?? false;
-      notify(ok ? "✅ 搜尋完成" : "❌ 搜尋失敗", result?.detail || "");
-      await reportDone(task.id, task.type, ok, result?.detail ?? "", result?.posts ?? []);
-    } catch (e) {
-      notify("❌ 搜尋失敗", e.message);
-      await reportDone(task.id, task.type, false, e.message, []);
-    }
     return;
   }
 
