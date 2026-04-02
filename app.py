@@ -20,6 +20,7 @@ from modules.db import (
     get_due_schedules, mark_schedule_run, advance_fixed_index,
     get_patrol_config, save_patrol_config, pop_next_phrase, pop_next_keyword,
     should_auto_patrol, mark_auto_patrol_run, get_task_payload,
+    ensure_referral_code, process_referral, get_referral_stats,
     log_action, get_action_log,
 )
 
@@ -66,14 +67,20 @@ def auth_google():
     from google.oauth2 import id_token
     from google.auth.transport import requests as google_requests
 
-    credential = (request.json or {}).get("credential", "")
+    body       = request.json or {}
+    credential = body.get("credential", "")
+    ref_code   = body.get("ref_code", "").strip()
     try:
         info = id_token.verify_oauth2_token(
             credential, google_requests.Request(), GOOGLE_CLIENT_ID
         )
         email = info["email"]
         name  = info.get("name", "")
+        is_new = not get_user(email)
         user  = get_or_create_user(email, name)
+        # 處理推薦獎勵（僅新用戶首次登入）
+        if is_new and ref_code:
+            process_referral(email, ref_code)
         session["email"] = email
         session["name"]  = name
         return jsonify({"success": True, "user": {
@@ -183,6 +190,20 @@ def api_credits():
         return jsonify({"success": False, "error": "未登入"}), 401
     user = get_user(email)
     return jsonify({"success": True, "credits": user["credits"], "daily_used": user["daily_used"]})
+
+
+# ── 推薦獎勵 ─────────────────────────────────────────────────────────────────
+
+@app.route("/api/referral")
+def api_referral():
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    code  = ensure_referral_code(email)
+    stats = get_referral_stats(email)
+    base  = request.host_url.rstrip("/")
+    link  = f"{base}/app?ref={code}"
+    return jsonify({"success": True, "code": code, "link": link, **stats})
 
 
 # ── 排程 ─────────────────────────────────────────────────────────────────────
