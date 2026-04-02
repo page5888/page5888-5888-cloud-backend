@@ -369,7 +369,9 @@ def ext_task_done():
             save_inbox_items(email, acc_id, inbox)
         return jsonify({"success": True, "saved": len(inbox)})
 
-    if success:
+    # 只有留言/回覆/發文才扣點，搜尋/掃描免費
+    DEDUCT_TYPES = {"comment", "reply_comment", "post"}
+    if success and data.get("type") in DEDUCT_TYPES:
         result = deduct_credit(email)
         if not result["ok"]:
             return jsonify({"success": False, "error": result["reason"]})
@@ -559,10 +561,18 @@ def api_editor_gen_reply():
     gemini_key = acc.get("gemini_key", "")
     if not gemini_key:
         return jsonify({"success": False, "error": "請先設定 Gemini API Key"}), 400
+    import re as _re
+    def _strip_ts(t):
+        t = _re.sub(r'\b\d+\s*(天|小時|分鐘|秒|週|個月|年)前\b', '', t)
+        t = _re.sub(r'\b(剛剛|昨天|今天)\b', '', t)
+        t = _re.sub(r'\b\d+[wdhms]\b', '', t)
+        return _re.sub(r' {2,}', ' ', t).strip()
     from modules.ai_reply import generate_editor_reply
     result = generate_editor_reply(
-        gemini_key, acc, data.get("post_text", ""),
-        data.get("commenter", ""), data.get("comment_text", ""), "", "",
+        gemini_key, acc,
+        _strip_ts(data.get("post_text", "")),
+        data.get("commenter", ""),
+        _strip_ts(data.get("comment_text", "")), "", "",
     )
     if result.get("success") and inbox_id:
         update_inbox_reply(int(inbox_id), email, result["reply"])

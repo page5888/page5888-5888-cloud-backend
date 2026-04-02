@@ -1177,7 +1177,7 @@ async function runBatchPatrol() {
       if (info.status === "done" || info.status === "failed") {
         clearInterval(timer);
         const posts = info.posts || [];
-        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文</div>'; btn.disabled=false; btn.textContent="🚀 開始海巡留言"; return; }
+        if (!posts.length) { box.innerHTML = '<div class="text-gray-400 text-sm py-4">沒有找到貼文，換個關鍵字試試</div>'; btn.disabled=false; btn.textContent="🚀 開始海巡留言"; return; }
         // 3. 批次留言
         box.innerHTML = `<div class="text-sm text-indigo-500 py-2">找到 ${posts.length} 篇，正在建立留言任務…</div>`;
         const batchRes = await fetch("/api/patrol/batch-comment", {
@@ -1192,7 +1192,19 @@ async function runBatchPatrol() {
             await savePatrolConfigSilent();
             updateBatchNextKw();
           }
-          box.innerHTML = `<div class="text-green-600 text-sm py-2">✅ 已建立 ${batchData.count} 個留言任務，Extension 會陸續執行</div>`;
+          // 顯示找到的貼文列表
+          const postListHtml = (batchData.tasks || []).map(t =>
+            `<div class="flex items-start gap-2 py-1.5 border-b border-gray-100 last:border-0">
+              <span class="text-xs text-indigo-400 mt-0.5 shrink-0">💬</span>
+              <div class="min-w-0">
+                <a href="${esc(t.post_url)}" target="_blank" class="text-xs text-blue-500 hover:underline truncate block">${esc(t.post_url.replace('https://www.threads.com',''))}</a>
+                <div class="text-xs text-gray-400 mt-0.5 truncate">${esc(t.comment)}</div>
+              </div>
+            </div>`
+          ).join("");
+          box.innerHTML = `
+            <div class="text-green-600 text-sm py-2 mb-2">✅ 已建立 ${batchData.count} 個留言任務，Extension 每 30 秒執行一則</div>
+            <div class="bg-gray-50 rounded-xl border border-gray-100 px-3 py-1 max-h-48 overflow-y-auto">${postListHtml}</div>`;
           startQueueMonitor();
         } else {
           box.innerHTML = `<div class="text-red-400 text-sm py-2">建立失敗：${esc(batchData.error)}</div>`;

@@ -214,8 +214,12 @@ async function executeTask(task) {
               const commenter = m ? m[1] : "";
               if (!commenter) return;
               let commentText = (el.innerText || "").trim()
-                .replace(new RegExp(`^${commenter}\\s*\\n?`, "i"), "").trim()
-                .split("\n").slice(0, 4).join(" ").slice(0, 200);
+                .replace(new RegExp(`^${commenter}\\s*\\n?`, "i"), "").trim();
+              // 過濾時間戳記（如「3天前」「1小時前」「剛剛」）
+              commentText = commentText.replace(/\b\d+\s*(天|小時|分鐘|秒|週|個月|年)前\b/g, "");
+              commentText = commentText.replace(/\b(剛剛|昨天|今天)\b/g, "");
+              commentText = commentText.replace(/\b\d+[wdhms]\b/g, "");
+              commentText = commentText.split("\n").slice(0, 4).join(" ").replace(/\s{2,}/g, " ").trim().slice(0, 200);
               if (!commentText || seen.has(commenter + commentText)) return;
               seen.add(commenter + commentText);
               comments.push({ post_url: postUrl, post_text: postText, commenter, comment_text: commentText });
@@ -310,7 +314,7 @@ async function executeTask(task) {
       let root = input;
       for (let i = 0; i < 12 && root; i++) {
         const btn = [...root.querySelectorAll('[role="button"],button')].find(el => {
-          const t = (el.textContent || '').trim();
+          const t = (el.innerText || '').trim();
           return targets.includes(t) && !el.closest('[aria-hidden="true"]') && !el.disabled;
         });
         if (btn) { btn.click(); return true; }
