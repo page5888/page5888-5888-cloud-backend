@@ -78,7 +78,13 @@ async function executeTask(task) {
     const loadPromise = waitForTabLoad(tabId);
     chrome.tabs.update(tabId, { url: searchUrl });
     await loadPromise;
-    await new Promise(r => setTimeout(r, 2000)); // 等 React 渲染
+    await new Promise(r => setTimeout(r, 2500)); // 等 React 渲染
+
+    // 手動注入 content.js（確保背景分頁也有注入）
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+      await new Promise(r => setTimeout(r, 300));
+    } catch(e) { /* 已注入則忽略 */ }
 
     try {
       const result = await chrome.tabs.sendMessage(tabId, { action: "scrape", payload: { keyword } });
@@ -98,10 +104,16 @@ async function executeTask(task) {
   if (tabs.length > 0) {
     tabId = tabs[0].id;
   } else {
-    const tab = await chrome.tabs.create({ url: "https://www.threads.net", active: false });
+    const tab = await chrome.tabs.create({ url: "https://www.threads.net", active: true });
     tabId = tab.id;
     await new Promise(r => setTimeout(r, 3000));
   }
+
+  // 確保 content.js 有注入
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+    await new Promise(r => setTimeout(r, 300));
+  } catch(e) { /* 已注入則忽略 */ }
 
   try {
     const result = await chrome.tabs.sendMessage(tabId, { action: task.type, payload });

@@ -3,6 +3,10 @@
  * 接收 background 的指令，實際執行搜尋/留言動作
  */
 
+// 防止重複注入時重複綁定 listener
+if (!window._5888_initialized) {
+  window._5888_initialized = true;
+
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ── 接收 background 指令 ────────────────────────────────────────────────────
@@ -182,3 +186,5 @@ async function doPost({ text }) {
     return { success: false, detail: e.message };
   }
 }
+
+} // end if (!window._5888_initialized)
