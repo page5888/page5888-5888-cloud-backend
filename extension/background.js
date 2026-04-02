@@ -96,7 +96,7 @@ async function executeTask(task) {
       try { tabInfo = await chrome.tabs.get(searchTabId); } catch(_) {}
       const currentUrl = tabInfo?.url || "";
       console.log("[5888] tab URL after 9s:", currentUrl, "status:", tabInfo?.status);
-      if (currentUrl && !currentUrl.includes("threads.net") && !currentUrl.includes("instagram.com")) {
+      if (currentUrl && !currentUrl.includes("threads.net") && !currentUrl.includes("threads.com") && !currentUrl.includes("instagram.com")) {
         throw new Error("頁面跳轉到未知網址: " + currentUrl.slice(0, 60));
       }
 
