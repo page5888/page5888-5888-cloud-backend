@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "5888小編助手",
+  "version": "1.0.0",
+  "description": "Threads 自動留言海巡工具",
+
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://www.threads.net/*",
+    "https://threads.net/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon48.png"
+    }
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://www.threads.net/*", "https://threads.net/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "icons": {
+    "48": "icon48.png"
+  }
+}

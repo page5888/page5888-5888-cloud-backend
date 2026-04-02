@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    body { width: 280px; background: #fff; }
+    .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); padding: 16px; color: white; }
+    .header h1 { font-size: 15px; font-weight: 700; }
+    .header .sub { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+    .body { padding: 14px; }
+    .credits-box { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px;
+                   padding: 12px; text-align: center; margin-bottom: 12px; }
+    .credits-num { font-size: 28px; font-weight: 800; color: #0284c7; }
+    .credits-label { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .daily { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .btn { display: block; width: 100%; padding: 9px; border-radius: 8px; border: none;
+           font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 8px; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-outline { background: white; color: #6366f1; border: 1px solid #6366f1; }
+    .btn-gray { background: #f1f5f9; color: #475569; }
+    .status { font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px; }
+    .not-logged { text-align: center; padding: 20px 0; }
+    .not-logged p { font-size: 13px; color: #64748b; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>5888 小編助手</h1>
+    <div class="sub">Threads 自動化工具</div>
+  </div>
+  <div class="body">
+    <div id="loginView" class="not-logged" style="display:none">
+      <p>請先登入使用</p>
+      <button class="btn btn-primary" id="btnLogin">🔐 前往登入</button>
+    </div>
+    <div id="mainView" style="display:none">
+      <div class="credits-box">
+        <div class="credits-num" id="creditsNum">-</div>
+        <div class="credits-label">剩餘點數</div>
+        <div class="daily" id="dailyInfo"></div>
+      </div>
+      <button class="btn btn-primary" id="btnDashboard">🖥 開啟控制台</button>
+      <button class="btn btn-outline" id="btnRefresh">🔄 重新整理</button>
+      <button class="btn btn-gray" id="btnBuy">💳 儲值點數</button>
+      <div class="status" id="statusText">運行中</div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
