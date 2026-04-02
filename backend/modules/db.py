@@ -25,13 +25,16 @@ def init_db():
     with _lock, _conn() as c:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS users (
-            email       TEXT PRIMARY KEY,
-            name        TEXT DEFAULT '',
-            credits     INTEGER DEFAULT 0,
-            daily_used  INTEGER DEFAULT 0,
-            daily_date  TEXT DEFAULT '',
-            blocked     INTEGER DEFAULT 0,
-            created_at  TEXT DEFAULT (datetime('now'))
+            email          TEXT PRIMARY KEY,
+            name           TEXT DEFAULT '',
+            credits        INTEGER DEFAULT 0,
+            daily_used     INTEGER DEFAULT 0,
+            daily_date     TEXT DEFAULT '',
+            blocked        INTEGER DEFAULT 0,
+            referral_code  TEXT DEFAULT '',
+            referred_by    TEXT DEFAULT '',
+            referral_count INTEGER DEFAULT 0,
+            created_at     TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS accounts (
@@ -105,14 +108,21 @@ def get_or_create_user(email: str, name: str = "") -> dict:
     with _lock, _conn() as c:
         row = c.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
         if row:
-            return dict(row)
-        # 新用戶送 100 點
+            # 確保老用戶有推薦碼
+            d = dict(row)
+            if not d.get("referral_code"):
+                code = _make_referral_code(email)
+                c.execute("UPDATE users SET referral_code=? WHERE email=?", (code, email))
+                d["referral_code"] = code
+            return d
+        # 新用戶：送 100 點 + 生成推薦碼
+        code = _make_referral_code(email)
         c.execute(
-            "INSERT INTO users (email, name, credits) VALUES (?,?,100)",
-            (email, name)
+            "INSERT INTO users (email, name, credits, referral_code) VALUES (?,?,100,?)",
+            (email, name, code)
         )
         return {"email": email, "name": name, "credits": 100, "daily_used": 0,
-                "daily_date": "", "blocked": 0}
+                "daily_date": "", "blocked": 0, "referral_code": code}
 
 
 def get_user(email: str) -> dict | None:
@@ -354,6 +364,87 @@ DEFAULT_PHRASES = [
     "剛好需要這個", "來得正是時候", "看到這篇賺到了",
     "好想試試看", "馬上去查", "存起來回頭研究",
 ]
+
+
+def _migrate_users():
+    """補齊舊版 users 表缺少的欄位。"""
+    new_cols = [
+        ("referral_code",  "TEXT DEFAULT ''"),
+        ("referred_by",    "TEXT DEFAULT ''"),
+        ("referral_count", "INTEGER DEFAULT 0"),
+    ]
+    with _lock, _conn() as c:
+        for col, definition in new_cols:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} {definition}")
+            except Exception:
+                pass
+
+
+_migrate_users()
+
+
+def _make_referral_code(email: str) -> str:
+    """生成 8 位英數推薦碼（固定且唯一）。"""
+    import hashlib
+    h = hashlib.md5(email.encode()).hexdigest()[:8].upper()
+    return h
+
+
+def ensure_referral_code(email: str) -> str:
+    """確保用戶有推薦碼，沒有的話自動生成。"""
+    with _lock, _conn() as c:
+        row = c.execute("SELECT referral_code FROM users WHERE email=?", (email,)).fetchone()
+        if not row:
+            return ""
+        code = row["referral_code"] or ""
+        if not code:
+            code = _make_referral_code(email)
+            c.execute("UPDATE users SET referral_code=? WHERE email=?", (code, email))
+        return code
+
+
+def get_user_by_referral_code(code: str) -> dict | None:
+    with _lock, _conn() as c:
+        row = c.execute("SELECT * FROM users WHERE referral_code=?", (code.upper(),)).fetchone()
+        return dict(row) if row else None
+
+
+REFERRAL_BONUS = 100
+
+def process_referral(new_email: str, ref_code: str) -> bool:
+    """新用戶首次登入時處理推薦獎勵，回傳是否成功發放。"""
+    if not ref_code:
+        return False
+    referrer = get_user_by_referral_code(ref_code)
+    if not referrer or referrer["email"] == new_email:
+        return False
+    with _lock, _conn() as c:
+        # 確認新用戶還沒有被推薦過（避免重複）
+        row = c.execute("SELECT referred_by FROM users WHERE email=?", (new_email,)).fetchone()
+        if not row or row["referred_by"]:
+            return False
+        # 記錄推薦關係 + 給推薦人加點
+        c.execute("UPDATE users SET referred_by=? WHERE email=?", (ref_code, new_email))
+        c.execute(
+            "UPDATE users SET credits=credits+?, referral_count=referral_count+1 WHERE email=?",
+            (REFERRAL_BONUS, referrer["email"])
+        )
+    return True
+
+
+def get_referral_stats(email: str) -> dict:
+    with _lock, _conn() as c:
+        row = c.execute(
+            "SELECT referral_code, referral_count FROM users WHERE email=?", (email,)
+        ).fetchone()
+        if not row:
+            return {"code": "", "count": 0, "earned": 0}
+        return {
+            "code":   row["referral_code"] or "",
+            "count":  row["referral_count"] or 0,
+            "earned": (row["referral_count"] or 0) * REFERRAL_BONUS,
+        }
 
 
 def _migrate_patrol_config():

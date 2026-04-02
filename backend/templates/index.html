@@ -54,6 +54,7 @@
       <button onclick="switchTab('editor')"    class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">💬 小編回覆</button>
       <button onclick="switchTab('schedule')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📅 排程發文</button>
       <button onclick="switchTab('accounts')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">👤 帳號設定</button>
+      <button onclick="switchTab('referral')"  class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🎁 推薦獎勵</button>
       <button onclick="switchTab('log')"       class="tab-btn px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">📋 使用記錄</button>
       <button id="adminTabBtn" onclick="switchTab('admin')" class="tab-btn hidden px-5 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 transition">🔑 管理員</button>
     </div>
@@ -491,6 +492,55 @@
       </div>
     </div>
 
+    <!-- ── 🎁 推薦獎勵 ─────────────────────────────────────────────────────── -->
+    <div id="tabReferral" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <h2 class="font-semibold text-gray-700 mb-1">🎁 推薦獎勵</h2>
+        <p class="text-sm text-gray-400 mb-5">每推薦一位朋友成功登入，你獲得 <span class="font-bold text-indigo-600">100 點</span>，朋友也從 100 點起步</p>
+
+        <!-- 推薦連結 -->
+        <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-5">
+          <label class="text-xs text-gray-500 mb-2 block">你的專屬推薦連結</label>
+          <div class="flex gap-2 items-center">
+            <input id="referralLink" type="text" readonly
+              class="flex-1 border border-indigo-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-600 select-all"
+              value="讀取中…">
+            <button onclick="copyReferralLink()" id="btnCopyRef"
+              class="px-4 py-2 rounded-xl text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition whitespace-nowrap">
+              📋 複製
+            </button>
+          </div>
+          <span id="refCopied" class="text-xs text-green-500 mt-1 hidden block">已複製！</span>
+        </div>
+
+        <!-- 統計 -->
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div class="bg-gray-50 rounded-xl p-4">
+            <div id="refCount" class="text-2xl font-bold text-indigo-600">—</div>
+            <div class="text-xs text-gray-400 mt-1">成功推薦人數</div>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <div id="refEarned" class="text-2xl font-bold text-teal-600">—</div>
+            <div class="text-xs text-gray-400 mt-1">已獲得點數</div>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <div id="refCode" class="text-2xl font-bold text-gray-600 font-mono">—</div>
+            <div class="text-xs text-gray-400 mt-1">推薦碼</div>
+          </div>
+        </div>
+
+        <!-- 說明 -->
+        <div class="mt-5 text-sm text-gray-500 space-y-2">
+          <p>📌 使用方式：</p>
+          <ol class="list-decimal list-inside space-y-1 text-xs text-gray-400 ml-2">
+            <li>複製你的推薦連結，分享給朋友</li>
+            <li>朋友點連結，用 Google 帳號登入</li>
+            <li>系統自動確認並立即發放 100 點給你</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
     <!-- ── 📋 使用記錄 ─────────────────────────────────────────────────────── -->
     <div id="tabLog" class="hidden">
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
@@ -636,7 +686,10 @@ function initGoogleLogin() {
 async function handleGoogleCredential(response) {
   const res  = await fetch("/auth/google", {
     method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ credential: response.credential }),
+    body: JSON.stringify({
+      credential: response.credential,
+      ref_code: new URLSearchParams(location.search).get("ref") || "",
+    }),
   });
   const data = await res.json();
   if (data.success) {
@@ -656,7 +709,7 @@ async function doLogout() {
 
 // ── 頁籤切換 ─────────────────────────────────────────────────────────────────
 function switchTab(tab) {
-  ["trending","patrol","editor","schedule","accounts","log","admin"].forEach(t => {
+  ["trending","patrol","editor","schedule","accounts","referral","log","admin"].forEach(t => {
     document.getElementById("tabBtn_" + t)?.classList.remove("active");
     document.getElementById("tab" + t.charAt(0).toUpperCase() + t.slice(1))
       ?.classList.toggle("hidden", t !== tab);
@@ -670,6 +723,7 @@ function switchTab(tab) {
   if (tab === "log")      loadLog();
   if (tab === "admin")    loadAdminUsers();
   if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
+  if (tab === "referral") loadReferral();
   if (tab === "patrol")   loadPatrolConfig();
 }
 
@@ -1249,6 +1303,28 @@ async function runPromoPatrol() {
       }
     } catch(e) {}
   }, 3000);
+}
+
+// ── 推薦獎勵 ─────────────────────────────────────────────────────────────────
+async function loadReferral() {
+  try {
+    const res  = await fetch("/api/referral");
+    const data = await res.json();
+    if (!data.success) return;
+    document.getElementById("referralLink").value  = data.link;
+    document.getElementById("refCount").textContent  = data.count;
+    document.getElementById("refEarned").textContent = data.earned + " 點";
+    document.getElementById("refCode").textContent   = data.code;
+  } catch(e) {}
+}
+
+async function copyReferralLink() {
+  const link = document.getElementById("referralLink").value;
+  try {
+    await navigator.clipboard.writeText(link);
+    const el = document.getElementById("refCopied");
+    el.classList.remove("hidden"); setTimeout(() => el.classList.add("hidden"), 2000);
+  } catch(e) { alert("複製失敗，請手動選取"); }
 }
 
 // ── AI 小編回覆 ──────────────────────────────────────────────────────────────
