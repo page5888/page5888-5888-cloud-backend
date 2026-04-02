@@ -41,11 +41,25 @@ def init_db():
             id           TEXT PRIMARY KEY,
             user_email   TEXT NOT NULL,
             name         TEXT NOT NULL,
+            handle       TEXT DEFAULT '',
             access_token TEXT DEFAULT '',
             persona      TEXT DEFAULT '',
             gemini_key   TEXT DEFAULT '',
             created_at   TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (user_email) REFERENCES users(email)
+        );
+
+        CREATE TABLE IF NOT EXISTS comment_inbox (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email   TEXT NOT NULL,
+            account_id   TEXT DEFAULT '',
+            post_url     TEXT NOT NULL,
+            post_text    TEXT DEFAULT '',
+            commenter    TEXT DEFAULT '',
+            comment_text TEXT NOT NULL,
+            reply_text   TEXT DEFAULT '',
+            status       TEXT DEFAULT 'pending',
+            created_at   TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS tasks (
@@ -187,9 +201,9 @@ def add_account(user_email: str, data: dict) -> dict:
     acc_id = str(uuid.uuid4())[:8]
     with _lock, _conn() as c:
         c.execute(
-            "INSERT INTO accounts (id, user_email, name, access_token, persona, gemini_key) VALUES (?,?,?,?,?,?)",
-            (acc_id, user_email, data.get("name",""), data.get("access_token",""),
-             data.get("persona",""), data.get("gemini_key",""))
+            "INSERT INTO accounts (id, user_email, name, handle, access_token, persona, gemini_key) VALUES (?,?,?,?,?,?,?)",
+            (acc_id, user_email, data.get("name",""), data.get("handle",""),
+             data.get("access_token",""), data.get("persona",""), data.get("gemini_key",""))
         )
     return {"id": acc_id, **data}
 
@@ -197,10 +211,10 @@ def add_account(user_email: str, data: dict) -> dict:
 def update_account(acc_id: str, user_email: str, data: dict):
     with _lock, _conn() as c:
         c.execute(
-            """UPDATE accounts SET name=?, access_token=?, persona=?, gemini_key=?
+            """UPDATE accounts SET name=?, handle=?, access_token=?, persona=?, gemini_key=?
                WHERE id=? AND user_email=?""",
-            (data.get("name",""), data.get("access_token",""),
-             data.get("persona",""), data.get("gemini_key",""),
+            (data.get("name",""), data.get("handle",""),
+             data.get("access_token",""), data.get("persona",""), data.get("gemini_key",""),
              acc_id, user_email)
         )
 
@@ -381,7 +395,17 @@ def _migrate_users():
                 pass
 
 
+def _migrate_accounts():
+    """補齊 accounts 表缺少的欄位。"""
+    with _lock, _conn() as c:
+        try:
+            c.execute("ALTER TABLE accounts ADD COLUMN handle TEXT DEFAULT ''")
+        except Exception:
+            pass
+
+
 _migrate_users()
+_migrate_accounts()
 
 
 def _make_referral_code(email: str) -> str:
@@ -611,3 +635,54 @@ def get_action_log(user_email: str, limit: int = 50) -> list:
             "SELECT * FROM action_log WHERE user_email=? ORDER BY created_at DESC LIMIT ?",
             (user_email, limit)
         )]
+
+
+# ── 小編回覆收件匣 ────────────────────────────────────────────────────────────
+
+def save_inbox_items(user_email: str, account_id: str, items: list):
+    """將 Extension 掃回的留言存入收件匣（跳過已有相同 post_url+commenter+comment_text 的）。"""
+    with _lock, _conn() as c:
+        for item in items:
+            c.execute("""
+                INSERT INTO comment_inbox (user_email, account_id, post_url, post_text, commenter, comment_text)
+                SELECT ?,?,?,?,?,?
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM comment_inbox
+                    WHERE user_email=? AND post_url=? AND commenter=? AND comment_text=?
+                )
+            """, (user_email, account_id,
+                  item.get("post_url",""), item.get("post_text",""),
+                  item.get("commenter",""), item.get("comment_text",""),
+                  user_email, item.get("post_url",""),
+                  item.get("commenter",""), item.get("comment_text","")))
+
+
+def get_inbox(user_email: str) -> list:
+    with _lock, _conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM comment_inbox WHERE user_email=? AND status='pending' ORDER BY created_at DESC LIMIT 100",
+            (user_email,)
+        )]
+
+
+def update_inbox_reply(inbox_id: int, user_email: str, reply_text: str):
+    with _lock, _conn() as c:
+        c.execute(
+            "UPDATE comment_inbox SET reply_text=? WHERE id=? AND user_email=?",
+            (reply_text, inbox_id, user_email)
+        )
+
+
+def mark_inbox_sent(inbox_ids: list, user_email: str):
+    if not inbox_ids:
+        return
+    with _lock, _conn() as c:
+        c.execute(
+            f"UPDATE comment_inbox SET status='sent' WHERE user_email=? AND id IN ({','.join('?'*len(inbox_ids))})",
+            [user_email] + [int(i) for i in inbox_ids]
+        )
+
+
+def clear_inbox(user_email: str):
+    with _lock, _conn() as c:
+        c.execute("DELETE FROM comment_inbox WHERE user_email=? AND status='pending'", (user_email,))

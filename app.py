@@ -22,6 +22,7 @@ from modules.db import (
     should_auto_patrol, mark_auto_patrol_run, get_task_payload,
     ensure_referral_code, process_referral, get_referral_stats,
     log_action, get_action_log,
+    save_inbox_items, get_inbox, update_inbox_reply, mark_inbox_sent, clear_inbox,
 )
 
 TAIWAN_TZ  = timezone(timedelta(hours=8))
@@ -350,14 +351,21 @@ def ext_task_done():
     success = data.get("success", False)
     detail  = data.get("detail", "")
     posts   = data.get("posts", [])
+    inbox   = data.get("inbox", [])   # scan_inbox 任務的留言列表
 
     if not task_id:
         return jsonify({"success": False, "error": "缺少 task_id"}), 400
 
-    # 取得任務 payload（用於自動海巡判斷）
     task_payload = get_task_payload(task_id)
 
     complete_task(task_id, success, posts if posts else None)
+
+    # scan_inbox：掃描完成，存入收件匣（不扣點）
+    if data.get("type") == "scan_inbox":
+        if success and inbox:
+            acc_id = task_payload.get("account_id", "")
+            save_inbox_items(email, acc_id, inbox)
+        return jsonify({"success": True, "saved": len(inbox)})
 
     if success:
         result = deduct_credit(email)
@@ -504,6 +512,107 @@ def api_editor_send_reply():
         "reply_text":        reply_text,
     })
     return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/api/editor/scan", methods=["POST"])
+def api_editor_scan():
+    """推送掃描貼文留言任務給 Extension（不扣點，掃完後存入收件匣）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data   = request.json or {}
+    acc_id = data.get("account_id", "")
+    handle = data.get("handle", "").strip().lstrip("@")
+    if not handle:
+        return jsonify({"success": False, "error": "請先在帳號設定中填入 Threads @帳號名"}), 400
+    task_id = push_task(email, acc_id, "scan_inbox", {
+        "handle":    handle,
+        "account_id": acc_id,
+        "max_posts": int(data.get("max_posts", 5)),
+    })
+    return jsonify({"success": True, "task_id": task_id})
+
+
+@app.route("/api/editor/inbox", methods=["GET"])
+def api_editor_inbox():
+    """取得待回覆的留言收件匣。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    return jsonify({"success": True, "items": get_inbox(email)})
+
+
+@app.route("/api/editor/gen-reply", methods=["POST"])
+def api_editor_gen_reply():
+    """對單則收件匣留言 AI 生成回覆並存回 DB（不扣點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data      = request.json or {}
+    inbox_id  = data.get("inbox_id")
+    acc_id    = data.get("account_id", "")
+    acc       = get_account(acc_id, email)
+    if not acc:
+        return jsonify({"success": False, "error": "帳號不存在"}), 404
+    gemini_key = acc.get("gemini_key", "")
+    if not gemini_key:
+        return jsonify({"success": False, "error": "請先設定 Gemini API Key"}), 400
+    from modules.ai_reply import generate_editor_reply
+    result = generate_editor_reply(
+        gemini_key, acc, data.get("post_text", ""),
+        data.get("commenter", ""), data.get("comment_text", ""), "", "",
+    )
+    if result.get("success") and inbox_id:
+        update_inbox_reply(int(inbox_id), email, result["reply"])
+    return result if isinstance(result, dict) else jsonify(result)
+
+
+@app.route("/api/editor/send-replies", methods=["POST"])
+def api_editor_send_replies():
+    """批次發送勾選的收件匣回覆（每則扣 1 點）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data   = request.json or {}
+    items  = data.get("items", [])   # [{id, post_url, commenter, reply_text}]
+    acc_id = data.get("account_id", "")
+    if not items:
+        return jsonify({"success": False, "error": "沒有選取任何留言"}), 400
+
+    sent = []
+    failed = []
+    for item in items:
+        reply_text = (item.get("reply_text") or "").strip()
+        post_url   = (item.get("post_url") or "").strip()
+        if not reply_text or not post_url:
+            failed.append(item.get("id"))
+            continue
+        result = deduct_credit(email)
+        if not result["ok"]:
+            failed.append(item.get("id"))
+            continue
+        push_task(email, acc_id, "reply_comment", {
+            "post_url":          post_url,
+            "comment_author":    item.get("commenter", ""),
+            "comment_text_hint": item.get("comment_text", "")[:30],
+            "reply_text":        reply_text,
+        })
+        log_action(email, "reply_comment", f"@{item.get('commenter','')} {reply_text[:50]}")
+        sent.append(item.get("id"))
+
+    if sent:
+        mark_inbox_sent(sent, email)
+
+    return jsonify({"success": True, "sent": len(sent), "failed": len(failed)})
+
+
+@app.route("/api/editor/clear-inbox", methods=["POST"])
+def api_editor_clear_inbox():
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    clear_inbox(email)
+    return jsonify({"success": True})
 
 
 @app.route("/api/patrol/comment", methods=["POST"])
