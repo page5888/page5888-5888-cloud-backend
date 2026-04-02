@@ -145,7 +145,7 @@ async function executeTask(task) {
     const loadPromise = waitForTabLoad(tabId);
     chrome.tabs.update(tabId, { url: searchUrl });
     await loadPromise;
-    await new Promise(r => setTimeout(r, 2500)); // 等 React 渲染
+    await new Promise(r => setTimeout(r, 4500)); // 等 React 渲染（Threads 較慢）
 
     // 手動注入 content.js（確保背景分頁也有注入）
     try {

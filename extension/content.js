@@ -30,28 +30,55 @@ async function handleAction(msg) {
 // ── 抓取搜尋結果（background 已跳頁完成後才呼叫） ───────────────────────────
 async function doScrape({ keyword }) {
   try {
-    const posts = [];
-    const seen = new Set();
+    // 滾動頁面觸發 lazy load
+    window.scrollTo(0, 600);
+    await delay(800);
+    window.scrollTo(0, 1200);
+    await delay(600);
+    window.scrollTo(0, 0);
 
-    // 找頁面上所有貼文連結，往上找容器抓文字
-    document.querySelectorAll("a[href*='/post/']").forEach(a => {
-      const link = a.href.split("?")[0]; // 去掉 query string
-      if (!link || seen.has(link)) return;
+    const posts = [];
+    const seen  = new Set();
+
+    // Threads 貼文連結可能是 /post/ 或 /t/ 兩種格式
+    const anchors = [
+      ...document.querySelectorAll("a[href*='/post/']"),
+      ...document.querySelectorAll("a[href*='/t/']"),
+    ];
+
+    anchors.forEach(a => {
+      const raw  = a.href || "";
+      const link = raw.split("?")[0];
+      // 過濾掉非貼文連結（/t/ 可能匹配到不相關路徑）
+      if (!link) return;
+      if (link.includes("/t/") && !/\/t\/[A-Za-z0-9_-]{5,}/.test(link)) return;
+      if (seen.has(link)) return;
       seen.add(link);
 
-      // 往上找有文字內容的容器（最多爬 8 層）
+      // 往上找有文字內容的容器（最多爬 10 層）
       let el = a.parentElement;
       let text = "";
-      for (let i = 0; i < 8 && el; i++) {
+      for (let i = 0; i < 10 && el; i++) {
         const t = el.innerText?.trim();
-        if (t && t.length > 20) { text = t.slice(0, 300); break; }
+        if (t && t.length > 15) { text = t.slice(0, 300); break; }
         el = el.parentElement;
       }
       if (!text) text = a.innerText?.trim().slice(0, 300) || link;
       posts.push({ text, link });
     });
 
-    // 如果完全找不到，回傳成功但 0 篇，讓後端決定
+    if (posts.length === 0) {
+      // 最後嘗試：抓頁面上所有帶文字的可點擊區域（暴力撈）
+      document.querySelectorAll("[role='link'], [tabindex='0']").forEach(el => {
+        const link = el.dataset?.href || el.getAttribute("href") || "";
+        if (!link || seen.has(link)) return;
+        if (!/\/(post|t)\//.test(link)) return;
+        seen.add(link);
+        const text = el.innerText?.trim().slice(0, 300) || link;
+        posts.push({ text, link: link.startsWith("http") ? link : "https://www.threads.net" + link });
+      });
+    }
+
     return { success: true, posts, detail: `搜尋「${keyword}」找到 ${posts.length} 篇` };
   } catch (e) {
     return { success: false, detail: e.message };
