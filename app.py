@@ -28,6 +28,24 @@ app.secret_key = os.environ.get("SECRET_KEY", "5888cloud-secret-change-me")
 init_db()
 
 
+# ── CORS（允許 Chrome Extension 跨域帶 Cookie） ────────────────────────────────
+
+@app.after_request
+def add_cors_headers(response):
+    origin = request.headers.get("Origin", "")
+    if origin.startswith("chrome-extension://"):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+
+@app.route("/ext/<path:subpath>", methods=["OPTIONS"])
+def cors_preflight(subpath):
+    return "", 204
+
+
 # ── Google OAuth ──────────────────────────────────────────────────────────────
 
 GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
