@@ -134,8 +134,8 @@
         <!-- 海巡留言（快速 + 自動批次合併） -->
         <div id="ptabSearch" class="p-5">
           <p class="text-sm text-gray-400 mb-4">搜尋關鍵字 → 找到相關貼文 → Extension 自動逐篇留言（扣 1 點/則）</p>
-          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-700">
-            ⚠️ 需要安裝 Chrome Extension，Extension 會在你的瀏覽器中操作 Threads
+          <div id="extStatusBanner" class="rounded-xl p-3 mb-4 text-xs transition bg-gray-50 border border-gray-200 text-gray-400">
+            ⏳ 偵測 Extension 中…
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             <div>
@@ -679,7 +679,7 @@ function switchTab(tab) {
   if (tab === "admin")    loadAdminUsers();
   if (tab === "trending" || tab === "patrol" || tab === "editor") fillAccountSelects();
   if (tab === "referral") loadReferral();
-  if (tab === "patrol")   { loadPatrolConfig(); updateBatchNextKw(); }
+  if (tab === "patrol")   { loadPatrolConfig(); updateBatchNextKw(); checkExtStatus(); }
   if (tab === "editor")   loadInbox();
 }
 
@@ -835,6 +835,26 @@ async function postTrendingText() {
     }
   } catch(e) { res.textContent = "網路錯誤"; res.className = "text-sm self-center text-red-500"; }
   finally { btn.disabled = false; btn.textContent = "✈️ 發布到 Threads（扣 1 點）"; }
+}
+
+// ── Extension 連線狀態 ────────────────────────────────────────────────────────
+async function checkExtStatus() {
+  const banner = document.getElementById("extStatusBanner");
+  if (!banner) return;
+  try {
+    const res  = await fetch("/ext/status");
+    const data = await res.json();
+    if (data.online) {
+      banner.className = "rounded-xl p-3 mb-4 text-xs transition bg-green-50 border border-green-200 text-green-700";
+      banner.textContent = "✅ Chrome Extension 已連線，正在運作中";
+    } else {
+      banner.className = "rounded-xl p-3 mb-4 text-xs transition bg-amber-50 border border-amber-200 text-amber-700";
+      banner.textContent = "⚠️ 偵測不到 Chrome Extension，請確認已安裝並在 Threads 開啟分頁";
+    }
+  } catch(e) {
+    banner.className = "rounded-xl p-3 mb-4 text-xs transition bg-amber-50 border border-amber-200 text-amber-700";
+    banner.textContent = "⚠️ 無法確認 Extension 狀態";
+  }
 }
 
 // ── 海巡留言 ─────────────────────────────────────────────────────────────────

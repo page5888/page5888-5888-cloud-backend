@@ -250,42 +250,60 @@ async function executeTask(task) {
     try {
       const tab = await chrome.tabs.create({ url: post_url, active: true });
       commentTabId = tab.id;
-      await sleep(7000);
+      await sleep(9000); // 等頁面完整渲染
 
-      // 步驟 1：點 Reply 開留言框
+      // 步驟 1：點 Reply 開留言框（廣泛選擇器）
       await execSync(commentTabId, () => {
-        const btn = document.querySelector('[aria-label*="Reply"], [aria-label*="留言"], [aria-label*="回覆"]');
+        const btn =
+          document.querySelector('[aria-label*="Reply"]') ||
+          document.querySelector('[aria-label*="留言"]') ||
+          document.querySelector('[aria-label*="回覆"]') ||
+          [...document.querySelectorAll("span,div")].find(el =>
+            /^(Reply|留言|回覆)$/.test(el.innerText?.trim()) && el.role !== "none"
+          );
         if (btn) btn.click();
-        return true;
+        return !!btn;
       });
-      await sleep(1000);
+      await sleep(1500); // 等留言框展開動畫
 
-      // 步驟 2：找輸入框並輸入文字
+      // 步驟 2：找輸入框並輸入文字（模擬人工輸入）
       const typed = await execSync(commentTabId, (txt) => {
-        const input = document.querySelector('[contenteditable="true"][role="textbox"]')
-                    || document.querySelector('textarea[placeholder*="Reply"]');
+        const input =
+          document.querySelector('[contenteditable="true"][role="textbox"]') ||
+          document.querySelector('[contenteditable="true"]') ||
+          document.querySelector('textarea[placeholder*="Reply"]') ||
+          document.querySelector('textarea');
         if (!input) return false;
         input.focus();
+        // 清空再輸入，避免疊字
+        const sel = window.getSelection();
+        if (sel) { sel.selectAllChildren(input); sel.collapseToEnd(); }
         document.execCommand("insertText", false, txt);
-        return true;
+        return !!input.innerText?.trim();
       }, [comment_text]);
       if (!typed) { await reportDone(task.id, task.type, false, "找不到留言輸入框"); return; }
-      await sleep(600);
+      await sleep(1000);
 
       // 步驟 3：找送出按鈕（從 input 往上找，避免誤點追蹤按鈕）
       const submitted = await execSync(commentTabId, () => {
-        const input = document.querySelector('[contenteditable="true"][role="textbox"]');
+        const input = document.querySelector('[contenteditable="true"][role="textbox"]')
+                   || document.querySelector('[contenteditable="true"]');
         let el = input, btn = null;
-        for (let i = 0; i < 8 && el && !btn; i++) {
-          btn = [...el.querySelectorAll("button")].find(b => /^(Post|發布|張貼)$/i.test(b.innerText?.trim()));
+        for (let i = 0; i < 10 && el && !btn; i++) {
+          btn = [...el.querySelectorAll("button")].find(b =>
+            /Post|發布|張貼|Reply|回覆/i.test(b.innerText?.trim()) &&
+            !b.disabled
+          );
           el = el.parentElement;
         }
-        if (!btn) btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
+        if (!btn) {
+          btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
+        }
         if (!btn) return false;
         btn.click();
         return true;
       });
-      await sleep(1500);
+      await sleep(2000); // 等送出完成
 
       if (submitted) {
         notify("✅ 留言完成", comment_text.slice(0, 50));
@@ -310,7 +328,7 @@ async function executeTask(task) {
     try {
       const tab = await chrome.tabs.create({ url: post_url, active: true });
       replyTabId = tab.id;
-      await sleep(7000);
+      await sleep(9000);
 
       // 步驟 1：找目標留言的 Reply 按鈕並點擊
       await execSync(replyTabId, (author, hint) => {
@@ -330,26 +348,33 @@ async function executeTask(task) {
         if (btn) btn.click();
         return true;
       }, [comment_author, comment_text_hint]);
-      await sleep(1000);
+      await sleep(1500);
 
       // 步驟 2：輸入回覆文字
       const typed = await execSync(replyTabId, (txt) => {
-        const input = document.querySelector('[contenteditable="true"][role="textbox"]')
-                    || document.querySelector('textarea[placeholder*="Reply"]');
+        const input =
+          document.querySelector('[contenteditable="true"][role="textbox"]') ||
+          document.querySelector('[contenteditable="true"]') ||
+          document.querySelector('textarea');
         if (!input) return false;
         input.focus();
+        const sel = window.getSelection();
+        if (sel) { sel.selectAllChildren(input); sel.collapseToEnd(); }
         document.execCommand("insertText", false, txt);
-        return true;
+        return !!input.innerText?.trim();
       }, [reply_text]);
       if (!typed) { await reportDone(task.id, task.type, false, "找不到回覆輸入框"); return; }
-      await sleep(600);
+      await sleep(1000);
 
       // 步驟 3：送出
       const submitted = await execSync(replyTabId, () => {
-        const input = document.querySelector('[contenteditable="true"][role="textbox"]');
+        const input = document.querySelector('[contenteditable="true"][role="textbox"]')
+                   || document.querySelector('[contenteditable="true"]');
         let el = input, btn = null;
-        for (let i = 0; i < 8 && el && !btn; i++) {
-          btn = [...el.querySelectorAll("button")].find(b => /^(Post|發布|張貼)$/i.test(b.innerText?.trim()));
+        for (let i = 0; i < 10 && el && !btn; i++) {
+          btn = [...el.querySelectorAll("button")].find(b =>
+            /Post|發布|張貼|Reply|回覆/i.test(b.innerText?.trim()) && !b.disabled
+          );
           el = el.parentElement;
         }
         if (!btn) btn = document.querySelector('[aria-label="Post"],[aria-label="發布"],[aria-label="張貼"]');
@@ -357,7 +382,7 @@ async function executeTask(task) {
         btn.click();
         return true;
       });
-      await sleep(1500);
+      await sleep(2000);
 
       if (submitted) {
         notify("✅ 回覆完成", reply_text.slice(0, 50));

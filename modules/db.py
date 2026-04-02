@@ -245,10 +245,11 @@ def push_task(user_email: str, account_id: str, task_type: str, payload: dict) -
 
 
 def pop_pending_tasks(user_email: str) -> list:
-    """Extension 呼叫：取得所有 pending 任務並標記為 running。"""
+    """Extension 呼叫：每次只取 1 個 pending 任務並標記為 running。
+    每 30 秒輪詢一次，讓任務之間自然間隔，避免操作過快。"""
     with _lock, _conn() as c:
         rows = c.execute(
-            "SELECT * FROM tasks WHERE user_email=? AND status='pending' ORDER BY created_at LIMIT 20",
+            "SELECT * FROM tasks WHERE user_email=? AND status='pending' ORDER BY created_at LIMIT 1",
             (user_email,)
         ).fetchall()
         ids = [r["id"] for r in rows]
@@ -267,6 +268,31 @@ def complete_task(task_id: str, success: bool, result: list = None):
             "UPDATE tasks SET status=?, executed_at=datetime('now'), result=? WHERE id=?",
             (status, json.dumps(result) if result is not None else None, task_id)
         )
+
+
+def touch_ext_seen(user_email: str):
+    """記錄 Extension 最後一次 ping 的時間（用於 UI 顯示連線狀態）。"""
+    with _lock, _conn() as c:
+        c.execute("UPDATE users SET ext_last_seen=datetime('now') WHERE email=?", (user_email,))
+
+
+def get_ext_status(user_email: str) -> dict:
+    """回傳 Extension 是否在線（2 分鐘內有 ping）。"""
+    with _lock, _conn() as c:
+        # 先確保欄位存在（舊 DB 可能沒有）
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN ext_last_seen TEXT DEFAULT NULL")
+        except Exception:
+            pass
+        row = c.execute("SELECT ext_last_seen FROM users WHERE email=?", (user_email,)).fetchone()
+        last_seen = row["ext_last_seen"] if row else None
+        if not last_seen:
+            return {"online": False, "last_seen": None}
+        online = c.execute(
+            "SELECT 1 FROM users WHERE email=? AND ext_last_seen > datetime('now','-2 minutes')",
+            (user_email,)
+        ).fetchone() is not None
+        return {"online": online, "last_seen": last_seen}
 
 
 def get_queue_status(user_email: str) -> dict:
