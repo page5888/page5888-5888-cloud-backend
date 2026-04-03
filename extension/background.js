@@ -356,7 +356,7 @@ async function executeTask(task) {
     });
   }
 
-  // ── 共用：輸入文字（移植桌機板：focus + execCommand + input event） ────────
+  // ── 共用：輸入文字（移植桌機板：模擬 Ctrl+V 貼上，Lexical 需用 ClipboardEvent） ────
   async function typeText(tabId, txt) {
     return execSync(tabId, (text) => {
       const sels = ['div[data-lexical-editor="true"]','div[role="textbox"]',
@@ -367,14 +367,31 @@ async function executeTask(task) {
         if (el) { input = el; break; }
       }
       if (!input) return false;
-      // scrollIntoView + 點擊（觸發真實事件）
+
       input.scrollIntoView({ block: 'center' });
       input.click();
       input.focus();
-      // 清空 + 插入
+
+      // 方法 1：ClipboardEvent 模擬貼上（移植桌機板 Ctrl+V，Lexical 接受此事件）
+      try {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', text);
+        input.dispatchEvent(new ClipboardEvent('paste', {
+          clipboardData: dt, bubbles: true, cancelable: true
+        }));
+        const v1 = (input.textContent || input.value || '').trim();
+        if (v1.length > 0) return true;
+      } catch(_) {}
+
+      // 方法 2：execCommand insertText（舊版 fallback）
       document.execCommand("selectAll", false);
-      document.execCommand("insertText", false, text);
-      // 觸發 beforeinput + input 讓 Lexical/React 更新狀態
+      const ok = document.execCommand("insertText", false, text);
+      if (ok) {
+        const v2 = (input.textContent || input.value || '').trim();
+        if (v2.length > 0) return true;
+      }
+
+      // 方法 3：beforeinput event（React controlled input fallback）
       input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
       input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
       return (input.textContent || input.value || '').trim().length > 0;
