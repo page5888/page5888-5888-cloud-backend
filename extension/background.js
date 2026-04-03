@@ -356,46 +356,57 @@ async function executeTask(task) {
     });
   }
 
-  // ── 共用：輸入文字（移植桌機板：模擬 Ctrl+V 貼上，Lexical 需用 ClipboardEvent） ────
+  // ── 共用：輸入文字（async 版，等 Lexical 建立 selection 後再貼） ────────────
   async function typeText(tabId, txt) {
-    return execSync(tabId, (text) => {
-      const sels = ['div[data-lexical-editor="true"]','div[role="textbox"]',
-                    'div[contenteditable="true"]','[contenteditable]','textarea'];
-      let input = null;
-      for (const sel of sels) {
-        const el = document.querySelector(sel);
-        if (el) { input = el; break; }
-      }
-      if (!input) return false;
+    // async 注入函式：chrome.scripting 支援 async func 並等待 Promise resolve
+    const r = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: async (text) => {
+        const wait = ms => new Promise(res => setTimeout(res, ms));
+        const sels = ['div[data-lexical-editor="true"]','div[role="textbox"]',
+                      'div[contenteditable="true"]','[contenteditable]','textarea'];
+        let input = null;
+        for (const sel of sels) {
+          const el = document.querySelector(sel);
+          if (el) { input = el; break; }
+        }
+        if (!input) return { ok: false, method: "no_el" };
 
-      input.scrollIntoView({ block: 'center' });
-      input.click();
-      input.focus();
+        input.scrollIntoView({ block: 'center' });
+        input.click();
+        input.focus();
+        await wait(600); // 等 Lexical 建立 EditorState selection
 
-      // 方法 1：ClipboardEvent 模擬貼上（移植桌機板 Ctrl+V，Lexical 接受此事件）
-      try {
-        const dt = new DataTransfer();
-        dt.setData('text/plain', text);
-        input.dispatchEvent(new ClipboardEvent('paste', {
-          clipboardData: dt, bubbles: true, cancelable: true
-        }));
-        const v1 = (input.textContent || input.value || '').trim();
-        if (v1.length > 0) return true;
-      } catch(_) {}
+        // 方法 1：ClipboardEvent paste（Lexical 的 onPaste handler）
+        try {
+          const dt = new DataTransfer();
+          dt.setData('text/plain', text);
+          input.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+          await wait(400);
+          if ((input.textContent || input.value || '').trim().length > 0)
+            return { ok: true, method: "clipboard" };
+        } catch(_) {}
 
-      // 方法 2：execCommand insertText（舊版 fallback）
-      document.execCommand("selectAll", false);
-      const ok = document.execCommand("insertText", false, text);
-      if (ok) {
-        const v2 = (input.textContent || input.value || '').trim();
-        if (v2.length > 0) return true;
-      }
+        // 方法 2：execCommand insertText（需先 focus 到 activeElement）
+        if (document.activeElement !== input) { input.click(); input.focus(); await wait(200); }
+        document.execCommand("selectAll", false);
+        document.execCommand("insertText", false, text);
+        await wait(200);
+        if ((input.textContent || input.value || '').trim().length > 0)
+          return { ok: true, method: "execCommand" };
 
-      // 方法 3：beforeinput event（React controlled input fallback）
-      input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
-      input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: text }));
-      return (input.textContent || input.value || '').trim().length > 0;
-    }, [txt]);
+        // 方法 3：beforeinput（React Lexical fallback）
+        input.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType: 'insertText', data: text }));
+        input.dispatchEvent(new InputEvent('input',       { bubbles: true, inputType: 'insertText', data: text }));
+        await wait(200);
+        const v3 = (input.textContent || input.value || '').trim();
+        return { ok: v3.length > 0, method: "inputEvent" };
+      },
+      args: [txt],
+    });
+    const res = r?.[0]?.result;
+    console.log("[5888] typeText:", JSON.stringify(res));
+    return res?.ok === true;
   }
 
   // ── 留言任務 ─────────────────────────────────────────────────────────────────
