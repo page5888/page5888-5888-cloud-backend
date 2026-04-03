@@ -28,6 +28,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 async function pollTasks() {
   try {
     const res  = await fetch(`${CLOUD_URL}/ext/tasks`, { credentials: "include" });
+    if (res.status === 401) {
+      // 未登入：每 5 分鐘提示一次（用 storage 避免頻繁通知）
+      const { lastAuthWarn } = await chrome.storage.local.get("lastAuthWarn");
+      const now = Date.now();
+      if (!lastAuthWarn || now - lastAuthWarn > 5 * 60 * 1000) {
+        await chrome.storage.local.set({ lastAuthWarn: now });
+        notify("⚠️ 尚未登入", "請點擊 Extension 圖示 → 前往登入，否則任務無法執行");
+      }
+      return;
+    }
     const data = await res.json();
     if (!data.success || !data.tasks?.length) return;
 

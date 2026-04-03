@@ -1164,9 +1164,9 @@ async function runBatchPatrol() {
   let waited = 0;
   const timer = setInterval(async () => {
     waited += 3;
-    if (waited > 90) {
+    if (waited > 150) {
       clearInterval(timer);
-      box.innerHTML = '<div class="text-red-400 text-sm py-4">超時，請確認 Extension 有在運作</div>';
+      box.innerHTML = '<div class="text-red-400 text-sm py-4">⏱ 超時（150 秒無回應）。請點 Extension 圖示 → 按「🔍 連線測試」確認是否登入和連線正常</div>';
       btn.disabled=false; btn.textContent="🚀 開始海巡留言";
       return;
     }
