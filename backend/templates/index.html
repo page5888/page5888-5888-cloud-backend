@@ -497,7 +497,7 @@
     </div>
 
     <!-- ── 📋 使用記錄 ─────────────────────────────────────────────────────── -->
-    <div id="tabLog" class="hidden">
+    <div id="tabLog" class="hidden space-y-4">
       <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
         <div class="flex items-center justify-between mb-4">
           <h2 class="font-semibold text-gray-700">📋 使用記錄</h2>
@@ -505,6 +505,16 @@
         </div>
         <div id="logList" class="space-y-1.5 max-h-96 overflow-y-auto text-sm font-mono">
           <div class="text-gray-400 text-xs text-center py-4">讀取中…</div>
+        </div>
+      </div>
+      <!-- 任務執行記錄（含失敗原因） -->
+      <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="font-semibold text-gray-700">🔧 任務執行記錄</h2>
+          <button onclick="loadTaskLog()" class="text-xs text-indigo-500 hover:text-indigo-700">重新整理</button>
+        </div>
+        <div id="taskLogList" class="space-y-1.5 max-h-96 overflow-y-auto text-xs font-mono">
+          <div class="text-gray-400 text-center py-4">點擊「重新整理」查看最近任務</div>
         </div>
       </div>
     </div>
@@ -1751,6 +1761,31 @@ async function loadLog() {
       </div>`
     ).join("");
   } catch(e) {}
+}
+
+async function loadTaskLog() {
+  const el = document.getElementById("taskLogList");
+  try {
+    const res  = await fetch("/api/debug/tasks");
+    const data = await res.json();
+    if (!data.success || !data.tasks?.length) {
+      el.innerHTML = '<div class="text-gray-400 text-center py-4">尚無任務記錄</div>'; return;
+    }
+    const statusColor = { done:"text-green-600", failed:"text-red-500", pending:"text-yellow-500", running:"text-blue-500", cancelled:"text-gray-400" };
+    el.innerHTML = data.tasks.map(t => {
+      const result = (() => { try { return JSON.parse(t.result||'{}'); } catch { return {}; } })();
+      const detail = result.detail || "";
+      const sc = statusColor[t.status] || "text-gray-500";
+      return `<div class="py-1.5 border-b border-gray-100">
+        <div class="flex items-center gap-2">
+          <span class="text-gray-400 w-28 flex-shrink-0">${esc((t.executed_at||t.created_at||"").slice(0,16))}</span>
+          <span class="px-1.5 rounded ${sc} font-bold">${esc(t.status)}</span>
+          <span class="text-gray-600">${esc(t.type)}</span>
+        </div>
+        ${detail ? `<div class="text-gray-500 mt-0.5 ml-28 truncate" title="${esc(detail)}">${esc(detail.slice(0,120))}</div>` : ""}
+      </div>`;
+    }).join("");
+  } catch(e) { el.innerHTML = `<div class="text-red-400">${esc(e.message)}</div>`; }
 }
 
 // ── 管理員 ───────────────────────────────────────────────────────────────────

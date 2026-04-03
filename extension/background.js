@@ -361,26 +361,55 @@ async function executeTask(task) {
       commentTabId = tab.id;
       await sleep(9000); // 等頁面完整渲染
 
+      // 步驟 0：診斷頁面狀態（確認頁面載入正確）
+      const pageInfo = await execSync(commentTabId, () => ({
+        title: document.title,
+        url: location.href,
+        hasInput: !!document.querySelector('[contenteditable="true"]'),
+        hasReplyBtn: !![...document.querySelectorAll('[role="button"],button,span')].find(e =>
+          /Reply|留言|回覆/i.test(e.innerText || e.getAttribute('aria-label') || '')
+        ),
+        bodyText: (document.body?.innerText || "").slice(0, 100),
+      }));
+      console.log("[5888] comment page:", JSON.stringify(pageInfo));
+
+      if (!pageInfo?.url?.includes("threads")) {
+        throw new Error("頁面異常，不在 threads: " + (pageInfo?.url || "?").slice(0, 60));
+      }
+
       // 步驟 1：點 Reply 按鈕（4 種策略）
-      await clickReplyBtn(commentTabId);
+      const replyClicked = await clickReplyBtn(commentTabId);
+      console.log("[5888] clickReplyBtn:", replyClicked);
       await sleepR(1200, 2000);
 
-      // 步驟 2：等輸入框出現（最多重試 4 次，移植桌機板 polling 邏輯）
-      let inputReady = false;
-      for (let i = 0; i < 4; i++) {
-        inputReady = await findInputVisible(commentTabId);
-        if (inputReady) break;
-        await sleep(1000);
-      }
-      if (!inputReady) { await reportDone(task.id, task.type, false, "找不到留言輸入框"); return; }
+      // 步驟 2：直接嘗試 focus + 輸入（不依賴高度判斷，只要找到 contenteditable 即可）
+      const typed = await execSync(commentTabId, (text) => {
+        const el = document.querySelector('[contenteditable="true"][role="textbox"]')
+                || document.querySelector('[contenteditable="true"]');
+        if (!el) return { ok: false, reason: "no_input_el", inputs: document.querySelectorAll('[contenteditable]').length };
+        el.click();
+        el.focus();
+        document.execCommand("selectAll", false);
+        document.execCommand("insertText", false, text);
+        // 觸發 React/Lexical 的 input 事件
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+        const content = (el.textContent || el.innerText || "").trim();
+        return { ok: content.length > 0, reason: content.length > 0 ? "ok" : "type_failed_empty",
+                 content: content.slice(0, 30) };
+      }, [comment_text]);
 
-      // 步驟 3：輸入文字
-      const typed = await typeText(commentTabId, comment_text);
-      if (!typed) { await reportDone(task.id, task.type, false, "文字無法輸入到留言框"); return; }
+      console.log("[5888] typeText result:", JSON.stringify(typed));
+      if (!typed?.ok) {
+        const reason = typed?.reason || "type_failed";
+        const detail = `輸入失敗(${reason}) page="${pageInfo?.title?.slice(0,30)}" url=${pageInfo?.url?.slice(0,50)}`;
+        await reportDone(task.id, task.type, false, detail);
+        return;
+      }
       await sleepR(800, 1400);
 
-      // 步驟 4：送出（role=button 精確文字，移植桌機板）
+      // 步驟 3：送出（role=button 精確文字，移植桌機板）
       const submitted = await clickSubmitBtn(commentTabId);
+      console.log("[5888] clickSubmitBtn:", submitted);
       await sleepR(1800, 2500);
 
       if (submitted) {
@@ -388,7 +417,7 @@ async function executeTask(task) {
         await reportDone(task.id, task.type, true, "留言成功: " + comment_text.slice(0, 30));
       } else {
         notify("❌ 留言失敗", "找不到送出按鈕");
-        await reportDone(task.id, task.type, false, "找不到送出按鈕");
+        await reportDone(task.id, task.type, false, `找不到送出按鈕 page="${pageInfo?.title?.slice(0,30)}"`);
       }
     } catch(e) {
       notify("❌ 留言失敗", e.message.slice(0, 80));
@@ -437,18 +466,19 @@ async function executeTask(task) {
       }, [comment_author, comment_text_hint]);
       await sleepR(1200, 2000);
 
-      // 步驟 2：等輸入框出現
-      let inputReady = false;
-      for (let i = 0; i < 4; i++) {
-        inputReady = await findInputVisible(replyTabId);
-        if (inputReady) break;
-        await sleep(1000);
-      }
-      if (!inputReady) { await reportDone(task.id, task.type, false, "找不到回覆輸入框"); return; }
-
-      // 步驟 3：輸入文字
-      const typed = await typeText(replyTabId, reply_text);
-      if (!typed) { await reportDone(task.id, task.type, false, "文字無法輸入到回覆框"); return; }
+      // 步驟 2：直接 focus + 輸入
+      const typed = await execSync(replyTabId, (text) => {
+        const el = document.querySelector('[contenteditable="true"][role="textbox"]')
+                || document.querySelector('[contenteditable="true"]');
+        if (!el) return { ok: false, reason: "no_input_el" };
+        el.click(); el.focus();
+        document.execCommand("selectAll", false);
+        document.execCommand("insertText", false, text);
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+        const content = (el.textContent || el.innerText || "").trim();
+        return { ok: content.length > 0, reason: content.length > 0 ? "ok" : "type_failed_empty" };
+      }, [reply_text]);
+      if (!typed?.ok) { await reportDone(task.id, task.type, false, "回覆輸入失敗: " + (typed?.reason || "")); return; }
       await sleepR(800, 1400);
 
       // 步驟 4：送出
@@ -479,31 +509,40 @@ async function executeTask(task) {
       postTabId = tab.id;
       await sleep(6000);
 
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: postTabId },
-        func: (txt) => {
-          const wait = (ms) => new Promise(r => setTimeout(r, ms));
-          const composeBtn = document.querySelector('[aria-label*="New thread"], [aria-label*="新貼文"]');
-          if (!composeBtn) return { success: false, detail: "找不到發文按鈕" };
-          composeBtn.click();
-          return wait(800).then(() => {
-            const input = document.querySelector('[contenteditable="true"][role="textbox"]');
-            if (!input) return { success: false, detail: "找不到發文輸入框" };
-            input.focus();
-            document.execCommand("insertText", false, txt);
-            return wait(500).then(() => {
-              const btn = [...document.querySelectorAll("button")].find(b => b.innerText?.match(/Post|發布/i));
-              if (!btn) return { success: false, detail: "找不到發布按鈕" };
-              btn.click();
-              return wait(1000).then(() => ({ success: true, detail: "發文成功" }));
-            });
-          });
-        },
-        args: [payload.text],
+      // 步驟 1：找並點擊「新貼文」按鈕
+      const composeClicked = await execSync(postTabId, () => {
+        const btn = document.querySelector('[aria-label*="New thread"],[aria-label*="新貼文"],[aria-label*="發佈"]')
+                 || [...document.querySelectorAll('[role="button"],button')]
+                      .find(b => /New thread|新貼文/i.test(b.getAttribute('aria-label') || b.innerText || ''));
+        if (!btn) return false;
+        btn.click(); return true;
       });
-      const r = results?.[0]?.result || { success: false, detail: "無回傳" };
-      notify(r.success ? "✅ 發文完成" : "❌ 發文失敗", r.detail);
-      await reportDone(task.id, task.type, r.success, r.detail);
+      if (!composeClicked) {
+        await reportDone(task.id, task.type, false, "找不到發文按鈕");
+        return;
+      }
+      await sleep(1200);
+
+      // 步驟 2：輸入文字
+      const typed = await execSync(postTabId, (text) => {
+        const el = document.querySelector('[contenteditable="true"][role="textbox"]')
+                || document.querySelector('[contenteditable="true"]');
+        if (!el) return { ok: false };
+        el.click(); el.focus();
+        document.execCommand("selectAll", false);
+        document.execCommand("insertText", false, text);
+        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+        return { ok: (el.textContent || "").trim().length > 0 };
+      }, [payload.text]);
+      if (!typed?.ok) { await reportDone(task.id, task.type, false, "找不到發文輸入框"); return; }
+      await sleep(600);
+
+      // 步驟 3：送出
+      const submitted = await clickSubmitBtn(postTabId);
+      await sleep(1500);
+
+      notify(submitted ? "✅ 發文完成" : "❌ 發文失敗", submitted ? "發文成功" : "找不到發布按鈕");
+      await reportDone(task.id, task.type, submitted, submitted ? "發文成功" : "找不到發布按鈕");
     } catch(e) {
       notify("❌ 發文失敗", e.message.slice(0, 80));
       await reportDone(task.id, task.type, false, e.message);

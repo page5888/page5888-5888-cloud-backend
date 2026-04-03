@@ -312,6 +312,15 @@ def get_queue_status(user_email: str) -> dict:
         return {"pending": pending, "done_1h": done, "failed_1h": failed}
 
 
+def get_recent_tasks(user_email: str, limit: int = 20) -> list:
+    with _lock, _conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT id, type, status, result, created_at, executed_at FROM tasks "
+            "WHERE user_email=? ORDER BY created_at DESC LIMIT ?",
+            (user_email, limit)
+        )]
+
+
 def cancel_pending_tasks(user_email: str) -> int:
     with _lock, _conn() as c:
         c.execute(

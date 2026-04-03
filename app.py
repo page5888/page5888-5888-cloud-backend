@@ -16,7 +16,7 @@ from modules.db import (
     add_credits, set_blocked, deduct_credit,
     get_accounts, add_account, update_account, delete_account, get_account,
     push_task, pop_pending_tasks, complete_task, get_task_result,
-    get_queue_status, cancel_pending_tasks, touch_ext_seen, get_ext_status,
+    get_queue_status, cancel_pending_tasks, touch_ext_seen, get_ext_status, get_recent_tasks,
     get_schedules, add_schedule, update_schedule, toggle_schedule, delete_schedule,
     get_due_schedules, mark_schedule_run, advance_fixed_index,
     get_patrol_config, save_patrol_config, pop_next_phrase, pop_next_keyword,
@@ -906,6 +906,15 @@ def api_patrol_stop():
         return jsonify({"success": False}), 401
     cancelled = cancel_pending_tasks(email)
     return jsonify({"success": True, "cancelled": cancelled})
+
+
+@app.route("/api/debug/tasks")
+def api_debug_tasks():
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False}), 401
+    tasks = get_recent_tasks(email, limit=30)
+    return jsonify({"success": True, "tasks": tasks})
 
 
 # ── 啟動 ─────────────────────────────────────────────────────────────────────
