@@ -360,7 +360,7 @@ def ext_task_done():
 
     task_payload = get_task_payload(task_id)
 
-    complete_task(task_id, success, posts if posts else None)
+    complete_task(task_id, success, posts if posts else None, detail=detail)
 
     # scan_inbox：掃描完成，存入收件匣（不扣點）
     if data.get("type") == "scan_inbox":

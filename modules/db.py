@@ -261,12 +261,15 @@ def pop_pending_tasks(user_email: str) -> list:
         return [dict(r) for r in rows]
 
 
-def complete_task(task_id: str, success: bool, result: list = None):
+def complete_task(task_id: str, success: bool, result: list = None, detail: str = ""):
     with _lock, _conn() as c:
         status = "done" if success else "failed"
+        payload = {"detail": detail}
+        if result is not None:
+            payload["posts"] = result
         c.execute(
             "UPDATE tasks SET status=?, executed_at=datetime('now'), result=? WHERE id=?",
-            (status, json.dumps(result) if result is not None else None, task_id)
+            (status, json.dumps(payload), task_id)
         )
 
 
@@ -338,7 +341,7 @@ def get_task_result(task_id: str, user_email: str) -> dict | None:
         if not row:
             return None
         d = dict(row)
-        d["result"] = json.loads(d["result"]) if d.get("result") else []
+        d["result"] = json.loads(d["result"]) if d.get("result") else {}
         return d
 
 

@@ -401,7 +401,8 @@ async function executeTask(task) {
       console.log("[5888] typeText result:", JSON.stringify(typed));
       if (!typed?.ok) {
         const reason = typed?.reason || "type_failed";
-        const detail = `輸入失敗(${reason}) page="${pageInfo?.title?.slice(0,30)}" url=${pageInfo?.url?.slice(0,50)}`;
+        const detail = `輸入失敗(${reason}) page="${pageInfo?.title?.slice(0,30)}" hasInput=${pageInfo?.hasInput}`;
+        notify("❌ 留言失敗", detail.slice(0, 80));
         await reportDone(task.id, task.type, false, detail);
         return;
       }
@@ -416,8 +417,9 @@ async function executeTask(task) {
         notify("✅ 留言完成", comment_text.slice(0, 50));
         await reportDone(task.id, task.type, true, "留言成功: " + comment_text.slice(0, 30));
       } else {
-        notify("❌ 留言失敗", "找不到送出按鈕");
-        await reportDone(task.id, task.type, false, `找不到送出按鈕 page="${pageInfo?.title?.slice(0,30)}"`);
+        const submitDetail = `找不到送出按鈕 typed="${typed?.content?.slice(0,20)}" page="${pageInfo?.title?.slice(0,20)}"`;
+        notify("❌ 留言失敗", submitDetail.slice(0, 80));
+        await reportDone(task.id, task.type, false, submitDetail);
       }
     } catch(e) {
       notify("❌ 留言失敗", e.message.slice(0, 80));
