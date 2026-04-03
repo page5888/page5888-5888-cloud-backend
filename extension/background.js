@@ -388,16 +388,23 @@ async function executeTask(task) {
       commentTabId = tab.id;
       await sleep(9000); // 等頁面完整渲染
 
-      // 步驟 0：診斷頁面狀態（確認頁面載入正確）
-      const pageInfo = await execSync(commentTabId, () => ({
-        title: document.title,
-        url: location.href,
-        hasInput: !!document.querySelector('[contenteditable="true"]'),
-        hasReplyBtn: !![...document.querySelectorAll('[role="button"],button,span')].find(e =>
+      // 步驟 0：診斷頁面狀態
+      const pageInfo = await execSync(commentTabId, () => {
+        const lexicals = document.querySelectorAll('[data-lexical-editor="true"]');
+        const cedits   = document.querySelectorAll('[contenteditable]');
+        const replyBtns = [...document.querySelectorAll('[role="button"],button')].filter(e =>
           /Reply|留言|回覆/i.test(e.innerText || e.getAttribute('aria-label') || '')
-        ),
-        bodyText: (document.body?.innerText || "").slice(0, 100),
-      }));
+        );
+        return {
+          title: document.title.slice(0, 40),
+          url: location.href.slice(0, 80),
+          lexicalCount: lexicals.length,
+          ceditCount: cedits.length,
+          replyBtnCount: replyBtns.length,
+          replyBtnTexts: replyBtns.slice(0,3).map(e => (e.innerText || e.getAttribute('aria-label') || '').trim().slice(0,20)),
+          bodyWords: (document.body?.innerText || "").slice(0, 120),
+        };
+      });
       console.log("[5888] comment page:", JSON.stringify(pageInfo));
 
       if (!pageInfo?.url?.includes("threads")) {
@@ -447,8 +454,8 @@ async function executeTask(task) {
       }
 
       if (!inputFound) {
-        const detail = `找不到 Lexical 輸入框 barClicked=${barClicked} page="${pageInfo?.title?.slice(0,25)}"`;
-        notify("❌ 留言失敗", detail.slice(0, 100));
+        const detail = `找不到輸入框 lexical=${pageInfo?.lexicalCount} cedit=${pageInfo?.ceditCount} reply=${pageInfo?.replyBtnCount} barClicked=${barClicked} title="${pageInfo?.title?.slice(0,20)}"`;
+        notify("❌ 留言失敗", detail.slice(0, 120));
         await reportDone(task.id, task.type, false, detail);
         return;
       }
