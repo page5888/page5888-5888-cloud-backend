@@ -377,6 +377,12 @@ async function executeTask(task) {
         input.focus();
         await wait(600); // 等 Lexical 建立 EditorState selection
 
+        // 優先使用 activeElement（點擊後焦點所在，避免多個編輯器時選錯）
+        const ae = document.activeElement;
+        if (ae && (ae.hasAttribute('data-lexical-editor') || ae.isContentEditable || ae.tagName === 'TEXTAREA')) {
+          input = ae;
+        }
+
         // 方法 1：ClipboardEvent paste（Lexical 的 onPaste handler）
         try {
           const dt = new DataTransfer();
