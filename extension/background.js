@@ -377,32 +377,60 @@ async function executeTask(task) {
         throw new Error("頁面異常，不在 threads: " + (pageInfo?.url || "?").slice(0, 60));
       }
 
-      // 步驟 1：點 Reply 按鈕（4 種策略）
-      const replyClicked = await clickReplyBtn(commentTabId);
+      // 步驟 1：捲動到底部 + 點 Reply 按鈕
+      const replyClicked = await execSync(commentTabId, () => {
+        // 先捲動到底部，讓底部 Reply bar 進入視野
+        window.scrollTo(0, document.body.scrollHeight);
+        // 策略 1：aria-label
+        for (const sel of ['[aria-label*="Reply"]','[aria-label*="留言"]','[aria-label*="回覆"]','[aria-label*="Add"]']) {
+          const el = document.querySelector(sel);
+          if (el) { el.click(); return "aria-label"; }
+        }
+        // 策略 2：innerText 精確符合
+        const byText = [...document.querySelectorAll('[role="button"],button')].find(el => {
+          const t = (el.innerText || "").trim();
+          return /^(Reply|留言|回覆|Add a reply)$/i.test(t);
+        });
+        if (byText) { byText.click(); return "innerText"; }
+        // 策略 3：底部任何可點元素（包含已存在的 contenteditable，點擊可 focus）
+        const vh = window.innerHeight;
+        const bottomEls = [...document.querySelectorAll('[role="button"],button,[contenteditable],[role="textbox"]')]
+          .filter(el => { const r = el.getBoundingClientRect(); return r.top > vh * 0.4 && r.width > 20 && r.height > 5; });
+        if (bottomEls[0]) { bottomEls[0].click(); return "bottom-el"; }
+        return false;
+      });
       console.log("[5888] clickReplyBtn:", replyClicked);
-      await sleepR(1200, 2000);
+      await sleepR(2500, 3500); // 等待輸入框動畫出現
 
-      // 步驟 2：直接嘗試 focus + 輸入（不依賴高度判斷，只要找到 contenteditable 即可）
-      const typed = await execSync(commentTabId, (text) => {
-        const el = document.querySelector('[contenteditable="true"][role="textbox"]')
-                || document.querySelector('[contenteditable="true"]');
-        if (!el) return { ok: false, reason: "no_input_el", inputs: document.querySelectorAll('[contenteditable]').length };
-        el.click();
-        el.focus();
-        document.execCommand("selectAll", false);
-        document.execCommand("insertText", false, text);
-        // 觸發 React/Lexical 的 input 事件
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
-        const content = (el.textContent || el.innerText || "").trim();
-        return { ok: content.length > 0, reason: content.length > 0 ? "ok" : "type_failed_empty",
-                 content: content.slice(0, 30) };
-      }, [comment_text]);
+      // 步驟 2：嘗試找到輸入框，最多重試 5 次
+      // Threads 可能用 contenteditable="true" 或 contenteditable="plaintext-only"
+      let typed = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        typed = await execSync(commentTabId, (text) => {
+          const el = document.querySelector('[contenteditable="true"][role="textbox"]')
+                  || document.querySelector('[contenteditable][role="textbox"]')
+                  || document.querySelector('[contenteditable="true"]')
+                  || document.querySelector('[contenteditable="plaintext-only"]')
+                  || document.querySelector('[contenteditable]');
+          if (!el) return { ok: false, reason: "no_input_el", count: document.querySelectorAll('[contenteditable]').length };
+          el.click();
+          el.focus();
+          document.execCommand("selectAll", false);
+          document.execCommand("insertText", false, text);
+          el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+          const content = (el.textContent || el.innerText || "").trim();
+          return { ok: content.length > 0, reason: content.length > 0 ? "ok" : "type_failed_empty",
+                   content: content.slice(0, 30), tag: el.tagName, ce: el.getAttribute("contenteditable") };
+        }, [comment_text]);
+        if (typed?.ok) break;
+        await sleep(1000); // 等 1 秒後重試
+      }
 
       console.log("[5888] typeText result:", JSON.stringify(typed));
       if (!typed?.ok) {
         const reason = typed?.reason || "type_failed";
-        const detail = `輸入失敗(${reason}) page="${pageInfo?.title?.slice(0,30)}" hasInput=${pageInfo?.hasInput}`;
-        notify("❌ 留言失敗", detail.slice(0, 80));
+        const detail = `輸入失敗(${reason}) replyClicked=${replyClicked} ceCount=${typed?.count ?? "?"} page="${pageInfo?.title?.slice(0,25)}"`;
+        notify("❌ 留言失敗", detail.slice(0, 100));
         await reportDone(task.id, task.type, false, detail);
         return;
       }
