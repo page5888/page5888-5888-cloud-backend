@@ -68,7 +68,7 @@ async function executeTask(task) {
   const payload = typeof task.payload === "string"
     ? JSON.parse(task.payload) : task.payload;
 
-  const actionLabel = { search: "搜尋", comment: "留言", reply_comment: "回覆留言", post: "發文", scan_inbox: "掃描留言" }[task.type] || task.type;
+  const actionLabel = { search: "搜尋", comment: "留言", reply_comment: "回覆留言", post: "發文", scan_inbox: "掃描留言", follow_comment: "追蹤留言" }[task.type] || task.type;
   notify("5888 小編助手", `正在執行${actionLabel}任務…`);
 
   // ── 共用：取得或建立 Threads 分頁 ──────────────────────────────────────────
@@ -603,6 +603,82 @@ async function executeTask(task) {
       await reportDone(task.id, task.type, false, e.message);
     } finally {
       if (postTabId) chrome.tabs.remove(postTabId).catch(() => {});
+    }
+    return;
+  }
+
+  // ── 追蹤留言任務（移植桌機板 follow_and_comment_selenium） ──────────────────
+  if (task.type === "follow_comment") {
+    const { post_url, comment_text } = payload;
+    let tabId;
+    try {
+      const tab = await chrome.tabs.create({ url: post_url, active: true });
+      tabId = tab.id;
+      await sleep(6000);
+
+      // Step 1：從 URL 取得作者帳號名（/@username/post/... 或 /@username/t/...）
+      const authorInfo = await execSync(tabId, () => {
+        const m = location.pathname.match(/@([^/?#]+)/);
+        return { author: m ? m[1] : "" };
+      });
+      const author = authorInfo?.author || "";
+      let followed = false;
+
+      // Step 2：前往個人頁追蹤（移植桌機板 Step 1）
+      if (author) {
+        await navAndWait(tabId, `https://www.threads.com/@${author}`, 4000);
+        followed = await execSync(tabId, () => {
+          // 找「追蹤」button（text 或 aria-label）
+          const btn = [...document.querySelectorAll('[role="button"],button')]
+            .find(b => {
+              const t = (b.innerText || b.getAttribute('aria-label') || '').trim();
+              return t === '追蹤' || t === 'Follow';
+            });
+          if (btn) { btn.click(); return true; }
+          return false;
+        });
+        console.log("[5888] follow @" + author + ":", followed);
+        await sleepR(1200, 2000);
+      }
+
+      // Step 3：回到貼文留言（移植桌機板 Step 2–4）
+      await navAndWait(tabId, post_url, 7000);
+
+      let inputFound = await findLexicalInput(tabId);
+      if (!inputFound) {
+        await clickCommentBar(tabId);
+        for (let i = 0; i < 8; i++) {
+          await sleep(500);
+          inputFound = await findLexicalInput(tabId);
+          if (inputFound) break;
+        }
+      }
+
+      if (!inputFound) {
+        const detail = `找不到留言輸入框 followed=${followed} author=${author}`;
+        notify("❌ 追蹤留言失敗", detail.slice(0, 80));
+        await reportDone(task.id, task.type, false, detail);
+        return;
+      }
+
+      const typed = await typeText(tabId, comment_text);
+      if (!typed) {
+        await reportDone(task.id, task.type, false, `留言輸入失敗 followed=${followed}`);
+        return;
+      }
+      await sleepR(800, 1400);
+
+      const submitted = await clickSubmitBtn(tabId);
+      await sleepR(1800, 2500);
+
+      const detail = `追蹤=${followed ? '✓' : '已追蹤/找不到'} 留言=${submitted ? '✓' : '失敗'} @${author}`;
+      notify(submitted ? "✅ 追蹤留言完成" : "❌ 追蹤留言失敗", detail.slice(0, 80));
+      await reportDone(task.id, task.type, submitted, detail);
+    } catch(e) {
+      notify("❌ 追蹤留言失敗", e.message.slice(0, 80));
+      await reportDone(task.id, task.type, false, e.message);
+    } finally {
+      if (tabId) chrome.tabs.remove(tabId).catch(() => {});
     }
     return;
   }

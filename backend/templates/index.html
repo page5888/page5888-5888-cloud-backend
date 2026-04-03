@@ -1092,11 +1092,17 @@ function renderPatrolResults(posts) {
         <div class="flex-1 min-w-0">
           <textarea id="patrolComment_${i}" rows="2" placeholder="留言內容（AI 生成後可修改）"
             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs resize-none"></textarea>
-          <button onclick="sendPatrolComment(${i}, '${esc(p.link)}')"
-            class="mt-1 px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
-            💬 送出留言（扣 1 點）
-          </button>
-          <span id="patrolCommentResult_${i}" class="text-xs ml-2"></span>
+          <div class="mt-1 flex gap-2 flex-wrap items-center">
+            <button onclick="sendPatrolComment(${i}, '${esc(p.link)}')"
+              class="px-3 py-1 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition">
+              💬 留言（扣 1 點）
+            </button>
+            <button onclick="sendFollowComment(${i}, '${esc(p.link)}')"
+              class="px-3 py-1 rounded-lg text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white transition">
+              ➕ 追蹤+留言（扣 1 點）
+            </button>
+            <span id="patrolCommentResult_${i}" class="text-xs"></span>
+          </div>
         </div>
       </div>
     </div>`).join("");
@@ -1136,6 +1142,25 @@ async function sendPatrolComment(idx, postUrl) {
       resEl.textContent = "失敗：" + data.error; resEl.className = "text-xs ml-2 text-red-500";
     }
   } catch(e) { resEl.textContent = "網路錯誤"; resEl.className = "text-xs ml-2 text-red-500"; }
+}
+
+async function sendFollowComment(idx, postUrl) {
+  const comment = document.getElementById(`patrolComment_${idx}`).value.trim();
+  const resEl   = document.getElementById(`patrolCommentResult_${idx}`);
+  if (!comment) { alert("請先輸入或生成留言內容"); return; }
+  resEl.textContent = "發送中…"; resEl.className = "text-xs text-gray-400";
+  try {
+    const res  = await fetch("/api/patrol/follow-comment", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ account_id: _patrolAccountId, post_url: postUrl, comment }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      resEl.textContent = "✓ 追蹤留言任務已發送"; resEl.className = "text-xs text-purple-500";
+    } else {
+      resEl.textContent = "失敗：" + data.error; resEl.className = "text-xs text-red-500";
+    }
+  } catch(e) { resEl.textContent = "網路錯誤"; resEl.className = "text-xs text-red-500"; }
 }
 
 // ── 自動批次海巡 ─────────────────────────────────────────────────────────────

@@ -643,6 +643,22 @@ def api_patrol_comment():
     return jsonify({"success": True, "task_id": task_id})
 
 
+@app.route("/api/patrol/follow-comment", methods=["POST"])
+def api_patrol_follow_comment():
+    """推送追蹤+留言任務到 Extension（移植桌機版 follow_and_comment）。"""
+    email = session.get("email")
+    if not email:
+        return jsonify({"success": False, "error": "未登入"}), 401
+    data     = request.json or {}
+    post_url = data.get("post_url", "")
+    comment  = data.get("comment", "").strip()
+    acc_id   = data.get("account_id", "")
+    if not post_url or not comment:
+        return jsonify({"success": False, "error": "缺少必填欄位"}), 400
+    task_id = push_task(email, acc_id, "follow_comment", {"post_url": post_url, "comment_text": comment})
+    return jsonify({"success": True, "task_id": task_id})
+
+
 @app.route("/api/ai/trending-rewrite", methods=["POST"])
 def api_trending_rewrite():
     """熱門話題改寫（不扣點）。"""
