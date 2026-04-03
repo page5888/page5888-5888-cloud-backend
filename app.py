@@ -875,11 +875,19 @@ def api_patrol_result(task_id):
     task = get_task_result(task_id, email)
     if not task:
         return jsonify({"success": False, "error": "找不到任務"}), 404
+    result = task.get("result") or {}
+    # result 可能是舊格式 list 或新格式 {"detail":..., "posts":[...]}
+    if isinstance(result, list):
+        posts = result
+        detail = ""
+    else:
+        posts = result.get("posts", [])
+        detail = result.get("detail", "")
     return jsonify({
         "success": True,
         "status": task["status"],
-        "posts": task.get("result") or [],
-        "detail": task.get("payload", ""),
+        "posts": posts,
+        "detail": detail,
     })
 
 
