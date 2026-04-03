@@ -495,48 +495,46 @@ async function executeTask(task) {
       replyTabId = tab.id;
       await sleep(9000);
 
-      // 步驟 1：找目標留言的 Reply 按鈕（移植桌機板：先找 author，再點其中的 role=button SVG）
-      await execSync(replyTabId, (author, hint) => {
-        const authorLower = (author || "").toLowerCase().replace(/^@/, "");
-        const hintLower   = (hint || "").slice(0, 30).toLowerCase();
-        let targetEl = null;
-        for (const el of document.querySelectorAll("article,[role='article'],[data-pressable-container]")) {
-          const text = (el.innerText || "").toLowerCase();
-          if (authorLower && text.includes(authorLower)) {
-            if (!hintLower || text.includes(hintLower)) { targetEl = el; break; }
-            if (!targetEl) targetEl = el;
-          }
-        }
-        if (targetEl) {
-          // 找 role=button 帶 SVG 的（桌機板電腦版邏輯）
-          const svgBtn = [...targetEl.querySelectorAll('[role="button"]')]
-            .find(el => { const r = el.getBoundingClientRect(); return el.querySelector('svg') && r.width < 120 && r.width > 5; });
+      // 步驟 1：找目標留言的 SVG 按鈕（逐一嘗試，移植桌機板 Step 1c 逐一嘗試邏輯）
+      const authorLower = (comment_author || "").toLowerCase().replace(/^@/, "");
+      const hintLower   = (comment_text_hint || "").slice(0, 30).toLowerCase();
+
+      // 先找包含該留言者的容器裡的 SVG 按鈕
+      const targetClicked = await execSync(replyTabId, (author, hint) => {
+        const aL = author.toLowerCase(); const hL = hint.toLowerCase();
+        for (const el of document.querySelectorAll("article,[role='article'],[data-pressable-container='true']")) {
+          const txt = (el.innerText || "").toLowerCase();
+          if (aL && !txt.includes(aL)) continue;
+          if (hL && !txt.includes(hL)) continue;
+          const svgBtn = [...el.querySelectorAll('[role="button"]')]
+            .find(b => { const r = b.getBoundingClientRect(); return b.querySelector('svg') && r.width >= 5 && r.width <= 120 && r.height >= 5; });
           if (svgBtn) { svgBtn.click(); return true; }
-          // 或找文字符合的按鈕
-          const textBtn = [...targetEl.querySelectorAll('[role="button"],button')]
-            .find(b => /Reply|回覆/i.test(b.innerText));
+          const textBtn = [...el.querySelectorAll('[role="button"],button')].find(b => /Reply|回覆/i.test(b.innerText || ''));
           if (textBtn) { textBtn.click(); return true; }
         }
-        // Fallback：aria-label
-        const fb = document.querySelector('[aria-label*="Reply"],[aria-label*="留言"]');
-        if (fb) { fb.click(); return true; }
         return false;
-      }, [comment_author, comment_text_hint]);
-      await sleepR(1200, 2000);
+      }, [authorLower, hintLower]);
 
-      // 步驟 2：直接 focus + 輸入
-      const typed = await execSync(replyTabId, (text) => {
-        const el = document.querySelector('[contenteditable="true"][role="textbox"]')
-                || document.querySelector('[contenteditable="true"]');
-        if (!el) return { ok: false, reason: "no_input_el" };
-        el.click(); el.focus();
-        document.execCommand("selectAll", false);
-        document.execCommand("insertText", false, text);
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
-        const content = (el.textContent || el.innerText || "").trim();
-        return { ok: content.length > 0, reason: content.length > 0 ? "ok" : "type_failed_empty" };
-      }, [reply_text]);
-      if (!typed?.ok) { await reportDone(task.id, task.type, false, "回覆輸入失敗: " + (typed?.reason || "")); return; }
+      if (!targetClicked) {
+        // 找不到特定留言，退而求其次用 clickCommentBar
+        await clickCommentBar(replyTabId);
+      }
+
+      // 步驟 2：等輸入框出現（最多 8 × 0.5s）
+      let inputFound = false;
+      for (let i = 0; i < 8; i++) {
+        await sleep(500);
+        inputFound = await findLexicalInput(replyTabId);
+        if (inputFound) break;
+      }
+      if (!inputFound) {
+        await reportDone(task.id, task.type, false, `找不到回覆輸入框 author=${comment_author}`);
+        return;
+      }
+
+      // 步驟 3：輸入文字
+      const typed = await typeText(replyTabId, reply_text);
+      if (!typed) { await reportDone(task.id, task.type, false, "回覆輸入失敗（文字未進入）"); return; }
       await sleepR(800, 1400);
 
       // 步驟 4：送出
@@ -581,18 +579,17 @@ async function executeTask(task) {
       }
       await sleep(1200);
 
-      // 步驟 2：輸入文字
-      const typed = await execSync(postTabId, (text) => {
-        const el = document.querySelector('[contenteditable="true"][role="textbox"]')
-                || document.querySelector('[contenteditable="true"]');
-        if (!el) return { ok: false };
-        el.click(); el.focus();
-        document.execCommand("selectAll", false);
-        document.execCommand("insertText", false, text);
-        el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
-        return { ok: (el.textContent || "").trim().length > 0 };
-      }, [payload.text]);
-      if (!typed?.ok) { await reportDone(task.id, task.type, false, "找不到發文輸入框"); return; }
+      // 步驟 2：等輸入框出現並輸入文字
+      await sleep(800);
+      let postInputFound = false;
+      for (let i = 0; i < 6; i++) {
+        postInputFound = await findLexicalInput(postTabId);
+        if (postInputFound) break;
+        await sleep(500);
+      }
+      if (!postInputFound) { await reportDone(task.id, task.type, false, "找不到發文輸入框"); return; }
+      const typed = await typeText(postTabId, payload.text);
+      if (!typed) { await reportDone(task.id, task.type, false, "文字無法輸入到發文框"); return; }
       await sleep(600);
 
       // 步驟 3：送出
