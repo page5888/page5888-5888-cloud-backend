@@ -7,11 +7,13 @@ const CLOUD_URL = "https://prospective-dani-5888-4102b520.koyeb.app"; // 部署�
 
 // ── 通知工具 ────────────────────────────────────────────────────────────────
 function notify(title, message) {
+  const isError = title.startsWith("❌");
   chrome.notifications.create({
     type: "basic",
     iconUrl: "icon48.png",
     title,
     message,
+    requireInteraction: isError, // 失敗通知不自動消失，需手動關閉
   });
 }
 
